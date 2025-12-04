@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Mail, Lock, User, ArrowRight, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, User, ArrowRight, Loader2, ArrowLeft, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { FloatingShapes } from '@/components/FloatingShapes';
+import { OtpInput } from '@/components/OtpInput';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { z } from 'zod';
@@ -13,16 +14,21 @@ const authSchema = z.object({
   displayName: z.string().min(2, 'Имя должно быть минимум 2 символа').optional(),
 });
 
+type AuthStep = 'credentials' | 'otp';
+
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
+  const [step, setStep] = useState<AuthStep>('credentials');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [otpCode, setOtpCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [resendCooldown, setResendCooldown] = useState(0);
   
-  const { signIn, signUp, user } = useAuth();
+  const { signIn, signUp, verifyOtp, resendOtp, user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -31,6 +37,13 @@ export default function Auth() {
       navigate('/');
     }
   }, [user, navigate]);
+
+  useEffect(() => {
+    if (resendCooldown > 0) {
+      const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendCooldown]);
 
   const validateForm = () => {
     try {
@@ -64,8 +77,15 @@ export default function Auth() {
     
     try {
       if (isLogin) {
-        const { error } = await signIn(email, password);
-        if (error) {
+        const { error, needsVerification } = await signIn(email, password);
+        if (needsVerification) {
+          setStep('otp');
+          setResendCooldown(60);
+          toast({
+            title: 'Код отправлен',
+            description: 'Проверьте вашу почту для получения кода подтверждения',
+          });
+        } else if (error) {
           if (error.message.includes('Invalid login')) {
             toast({
               title: 'Ошибка входа',
@@ -81,7 +101,7 @@ export default function Auth() {
           }
         }
       } else {
-        const { error } = await signUp(email, password, displayName);
+        const { error, needsVerification } = await signUp(email, password, displayName);
         if (error) {
           if (error.message.includes('already registered')) {
             toast({
@@ -96,16 +116,80 @@ export default function Auth() {
               variant: 'destructive',
             });
           }
-        } else {
+        } else if (needsVerification) {
+          setStep('otp');
+          setResendCooldown(60);
           toast({
-            title: 'Добро пожаловать!',
-            description: 'Аккаунт успешно создан. Вам начислено 100 TCoins!',
+            title: 'Код отправлен',
+            description: 'Проверьте вашу почту для получения кода подтверждения',
           });
         }
       }
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (otpCode.length !== 6) {
+      toast({
+        title: 'Ошибка',
+        description: 'Введите 6-значный код',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      const { error } = await verifyOtp(email, otpCode, 'signup');
+      if (error) {
+        toast({
+          title: 'Неверный код',
+          description: 'Проверьте код и попробуйте снова',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: isLogin ? 'Добро пожаловать!' : 'Аккаунт создан!',
+          description: isLogin ? 'Вы успешно вошли' : 'Вам начислено 100 TCoins!',
+        });
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0) return;
+    
+    setIsLoading(true);
+    try {
+      const { error } = await resendOtp(email, 'signup');
+      if (error) {
+        toast({
+          title: 'Ошибка',
+          description: 'Не удалось отправить код',
+          variant: 'destructive',
+        });
+      } else {
+        setResendCooldown(60);
+        toast({
+          title: 'Код отправлен',
+          description: 'Проверьте вашу почту',
+        });
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleBackToCredentials = () => {
+    setStep('credentials');
+    setOtpCode('');
   };
 
   return (
@@ -120,106 +204,175 @@ export default function Auth() {
           </div>
           <h1 className="text-3xl font-bold gradient-text">ThetAI</h1>
           <p className="text-muted-foreground mt-2">
-            {isLogin ? 'Войдите в свой аккаунт' : 'Создайте аккаунт'}
+            {step === 'otp' 
+              ? 'Подтвердите email' 
+              : isLogin 
+                ? 'Войдите в свой аккаунт' 
+                : 'Создайте аккаунт'}
           </p>
         </div>
 
         {/* Form */}
         <div className="glass-card p-6">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {!isLogin && (
+          {step === 'credentials' ? (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {!isLogin && (
+                <div>
+                  <label className="text-sm text-muted-foreground mb-1.5 block">Имя</label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <input
+                      type="text"
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      placeholder="Ваше имя"
+                      className="w-full bg-muted/50 border border-border rounded-lg pl-10 pr-4 py-3 outline-none focus:border-primary transition-colors"
+                    />
+                  </div>
+                  {errors.displayName && (
+                    <p className="text-destructive text-xs mt-1">{errors.displayName}</p>
+                  )}
+                </div>
+              )}
+
               <div>
-                <label className="text-sm text-muted-foreground mb-1.5 block">Имя</label>
+                <label className="text-sm text-muted-foreground mb-1.5 block">Email</label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <input
-                    type="text"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="Ваше имя"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="your@email.com"
                     className="w-full bg-muted/50 border border-border rounded-lg pl-10 pr-4 py-3 outline-none focus:border-primary transition-colors"
                   />
                 </div>
-                {errors.displayName && (
-                  <p className="text-destructive text-xs mt-1">{errors.displayName}</p>
+                {errors.email && (
+                  <p className="text-destructive text-xs mt-1">{errors.email}</p>
                 )}
               </div>
-            )}
 
-            <div>
-              <label className="text-sm text-muted-foreground mb-1.5 block">Email</label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="your@email.com"
-                  className="w-full bg-muted/50 border border-border rounded-lg pl-10 pr-4 py-3 outline-none focus:border-primary transition-colors"
+              <div>
+                <label className="text-sm text-muted-foreground mb-1.5 block">Пароль</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full bg-muted/50 border border-border rounded-lg pl-10 pr-12 py-3 outline-none focus:border-primary transition-colors"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+                {errors.password && (
+                  <p className="text-destructive text-xs mt-1">{errors.password}</p>
+                )}
+              </div>
+
+              <Button
+                type="submit"
+                variant="gradient"
+                size="xl"
+                className="w-full"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    {isLogin ? 'Войти' : 'Создать аккаунт'}
+                    <ArrowRight className="w-5 h-5" />
+                  </>
+                )}
+              </Button>
+            </form>
+          ) : (
+            <form onSubmit={handleVerifyOtp} className="space-y-6">
+              <div className="text-center">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Mail className="w-8 h-8 text-primary" />
+                </div>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Код отправлен на
+                </p>
+                <p className="font-medium text-foreground">{email}</p>
+              </div>
+
+              <div>
+                <label className="text-sm text-muted-foreground mb-3 block text-center">
+                  Введите 6-значный код
+                </label>
+                <OtpInput
+                  value={otpCode}
+                  onChange={setOtpCode}
+                  disabled={isLoading}
                 />
               </div>
-              {errors.email && (
-                <p className="text-destructive text-xs mt-1">{errors.email}</p>
-              )}
-            </div>
 
-            <div>
-              <label className="text-sm text-muted-foreground mb-1.5 block">Пароль</label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full bg-muted/50 border border-border rounded-lg pl-10 pr-12 py-3 outline-none focus:border-primary transition-colors"
-                />
+              <Button
+                type="submit"
+                variant="gradient"
+                size="xl"
+                className="w-full"
+                disabled={isLoading || otpCode.length !== 6}
+              >
+                {isLoading ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    Подтвердить
+                    <ArrowRight className="w-5 h-5" />
+                  </>
+                )}
+              </Button>
+
+              <div className="flex items-center justify-between">
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={handleBackToCredentials}
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
                 >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  <ArrowLeft className="w-4 h-4" />
+                  Назад
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={handleResendOtp}
+                  disabled={resendCooldown > 0 || isLoading}
+                  className="text-sm text-primary hover:text-primary/80 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  {resendCooldown > 0 ? `Повторить (${resendCooldown}с)` : 'Отправить снова'}
                 </button>
               </div>
-              {errors.password && (
-                <p className="text-destructive text-xs mt-1">{errors.password}</p>
-              )}
+            </form>
+          )}
+
+          {step === 'credentials' && (
+            <div className="mt-6 text-center">
+              <button
+                onClick={() => setIsLogin(!isLogin)}
+                className="text-muted-foreground hover:text-foreground transition-colors text-sm"
+              >
+                {isLogin ? 'Нет аккаунта? ' : 'Уже есть аккаунт? '}
+                <span className="text-primary font-medium">
+                  {isLogin ? 'Зарегистрироваться' : 'Войти'}
+                </span>
+              </button>
             </div>
-
-            <Button
-              type="submit"
-              variant="gradient"
-              size="xl"
-              className="w-full"
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <>
-                  {isLogin ? 'Войти' : 'Создать аккаунт'}
-                  <ArrowRight className="w-5 h-5" />
-                </>
-              )}
-            </Button>
-          </form>
-
-          <div className="mt-6 text-center">
-            <button
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-muted-foreground hover:text-foreground transition-colors text-sm"
-            >
-              {isLogin ? 'Нет аккаунта? ' : 'Уже есть аккаунт? '}
-              <span className="text-primary font-medium">
-                {isLogin ? 'Зарегистрироваться' : 'Войти'}
-              </span>
-            </button>
-          </div>
+          )}
         </div>
 
         {/* Bonus info */}
-        {!isLogin && (
+        {!isLogin && step === 'credentials' && (
           <div className="mt-4 text-center animate-fade-in">
             <p className="text-sm text-muted-foreground">
               🎁 При регистрации вы получите <span className="text-tcoin font-semibold">100 TCoins</span>

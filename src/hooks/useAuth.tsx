@@ -6,8 +6,10 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  signUp: (email: string, password: string, displayName?: string) => Promise<{ error: Error | null }>;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, displayName?: string) => Promise<{ error: Error | null; needsVerification: boolean }>;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null; needsVerification: boolean }>;
+  verifyOtp: (email: string, token: string, type: 'signup' | 'email') => Promise<{ error: Error | null }>;
+  resendOtp: (email: string, type: 'signup' | 'email_change') => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -37,25 +39,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signUp = async (email: string, password: string, displayName?: string) => {
-    const redirectUrl = `${window.location.origin}/`;
-    
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo: redirectUrl,
         data: {
           display_name: displayName || email.split('@')[0]
         }
       }
     });
-    return { error };
+    
+    // If user exists but email not confirmed, they need verification
+    const needsVerification = !error && data.user && !data.session;
+    
+    return { error, needsVerification };
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
+    });
+    
+    // Check if email is not confirmed
+    if (error?.message?.includes('Email not confirmed')) {
+      // Resend OTP for login
+      await supabase.auth.resend({
+        type: 'signup',
+        email,
+      });
+      return { error: null, needsVerification: true };
+    }
+    
+    return { error, needsVerification: false };
+  };
+
+  const verifyOtp = async (email: string, token: string, type: 'signup' | 'email') => {
+    const { error } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type,
+    });
+    return { error };
+  };
+
+  const resendOtp = async (email: string, type: 'signup' | 'email_change') => {
+    const { error } = await supabase.auth.resend({
+      type,
+      email,
     });
     return { error };
   };
@@ -65,7 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signUp, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, session, loading, signUp, signIn, verifyOtp, resendOtp, signOut }}>
       {children}
     </AuthContext.Provider>
   );
