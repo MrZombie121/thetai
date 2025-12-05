@@ -246,7 +246,8 @@ export default function Auth() {
 
         {/* Form */}
         <div className="glass-card p-6">
-          {step === 'credentials' ? (
+          {/* Credentials Form - hidden when on OTP step */}
+          <div className={step === 'credentials' ? 'block' : 'hidden'}>
             <form onSubmit={handleSubmit} className="space-y-4">
               {!isLogin && (
                 <div>
@@ -325,7 +326,22 @@ export default function Auth() {
                 )}
               </Button>
             </form>
-          ) : (
+
+            <div className="mt-6 text-center">
+              <button
+                onClick={() => setIsLogin(!isLogin)}
+                className="text-muted-foreground hover:text-foreground transition-colors text-sm"
+              >
+                {isLogin ? t.auth.noAccount : t.auth.hasAccount}{' '}
+                <span className="text-primary font-medium">
+                  {isLogin ? t.auth.signUp : t.auth.signIn}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* OTP Form - hidden when on credentials step */}
+          <div className={step === 'otp' ? 'block' : 'hidden'}>
             <form onSubmit={handleVerifyOtp} className="space-y-6">
               <div className="text-center">
                 <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
@@ -386,21 +402,7 @@ export default function Auth() {
                 </button>
               </div>
             </form>
-          )}
-
-          {step === 'credentials' && (
-            <div className="mt-6 text-center">
-              <button
-                onClick={() => setIsLogin(!isLogin)}
-                className="text-muted-foreground hover:text-foreground transition-colors text-sm"
-              >
-                {isLogin ? t.auth.noAccount : t.auth.hasAccount}{' '}
-                <span className="text-primary font-medium">
-                  {isLogin ? t.auth.signUp : t.auth.signIn}
-                </span>
-              </button>
-            </div>
-          )}
+          </div>
         </div>
 
         {/* Bonus info */}
