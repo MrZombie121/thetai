@@ -17,7 +17,7 @@ serve(async (req) => {
     
     // Input validation
     const MAX_MESSAGE_LENGTH = 10000;
-    const MAX_MESSAGES = 50;
+    const MAX_CONTEXT_MESSAGES = 100; // Allow more messages but truncate for API
     const MESSAGE_SIZE_BYTES = 10240; // 10 KB per message
 
     if (!Array.isArray(messages) || messages.length === 0) {
@@ -27,14 +27,14 @@ serve(async (req) => {
       );
     }
 
-    if (messages.length > MAX_MESSAGES) {
-      return new Response(
-        JSON.stringify({ error: 'Too many messages' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // Truncate to last 100 messages for context (keep conversation flowing)
+    let processedMessages = messages;
+    if (messages.length > MAX_CONTEXT_MESSAGES) {
+      processedMessages = messages.slice(-MAX_CONTEXT_MESSAGES);
+      console.log(`Truncated messages from ${messages.length} to ${MAX_CONTEXT_MESSAGES}`);
     }
 
-    for (const msg of messages) {
+    for (const msg of processedMessages) {
       if (typeof msg.content === 'string' && msg.content.length > MAX_MESSAGE_LENGTH) {
         return new Response(
           JSON.stringify({ error: 'Message too long' }),
@@ -102,10 +102,10 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
 
-    console.log('Processing chat request with', messages.length, 'messages');
+    console.log('Processing chat request with', processedMessages.length, 'messages');
 
     // Build messages array with image support
-    const formattedMessages = messages.map((msg: any) => {
+    const formattedMessages = processedMessages.map((msg: any) => {
       if (msg.imageUrl) {
         return {
           role: msg.role,
