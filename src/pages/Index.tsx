@@ -14,7 +14,8 @@ const Index = () => {
     }
   }, [user, loading, navigate]);
 
-  if (loading) {
+  // Show loading state for both initial load and when user is not yet available
+  if (loading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
@@ -29,8 +30,6 @@ const Index = () => {
       </div>
     );
   }
-
-  if (!user) return null;
 
   return <Chat />;
 };
