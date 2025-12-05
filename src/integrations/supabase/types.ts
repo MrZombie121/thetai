@@ -133,6 +133,7 @@ export type Database = {
           id: string
           is_plus: boolean
           plus_expires_at: string | null
+          selected_model: string
           storage_used_bytes: number
           tcoins: number
           updated_at: string
@@ -145,6 +146,7 @@ export type Database = {
           id: string
           is_plus?: boolean
           plus_expires_at?: string | null
+          selected_model?: string
           storage_used_bytes?: number
           tcoins?: number
           updated_at?: string
@@ -157,6 +159,7 @@ export type Database = {
           id?: string
           is_plus?: boolean
           plus_expires_at?: string | null
+          selected_model?: string
           storage_used_bytes?: number
           tcoins?: number
           updated_at?: string

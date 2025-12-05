@@ -11,6 +11,7 @@ export interface Profile {
   is_plus: boolean;
   plus_expires_at: string | null;
   storage_used_bytes: number;
+  selected_model: string;
   created_at: string;
   updated_at: string;
 }
@@ -104,10 +105,27 @@ export function useProfile() {
     },
   });
 
+  const updateSelectedModel = useMutation({
+    mutationFn: async (model: string) => {
+      if (!user) throw new Error('Not authenticated');
+      
+      const { error } = await supabase
+        .from('profiles')
+        .update({ selected_model: model })
+        .eq('id', user.id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['profile', user?.id] });
+    },
+  });
+
   return {
     profile,
     isLoading,
     updateTcoins,
     upgradeToPlusAccount,
+    updateSelectedModel,
   };
 }
