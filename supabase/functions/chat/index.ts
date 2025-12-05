@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -17,6 +18,7 @@ serve(async (req) => {
     // Input validation
     const MAX_MESSAGE_LENGTH = 10000;
     const MAX_MESSAGES = 50;
+    const MESSAGE_SIZE_BYTES = 10240; // 10 KB per message
 
     if (!Array.isArray(messages) || messages.length === 0) {
       return new Response(
@@ -38,6 +40,59 @@ serve(async (req) => {
           JSON.stringify({ error: 'Message too long' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
+      }
+    }
+
+    // Get authorization header and check user limits
+    const authHeader = req.headers.get('Authorization');
+    if (authHeader) {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+      // Extract JWT token and get user
+      const token = authHeader.replace('Bearer ', '');
+      const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+
+      if (user && !userError) {
+        // Check if user can send message
+        const { data: limitCheck, error: limitError } = await supabase
+          .rpc('can_user_send_message', { _user_id: user.id });
+
+        if (limitError) {
+          console.error('Error checking message limits:', limitError);
+        } else if (limitCheck && !limitCheck.allowed) {
+          if (limitCheck.reason === 'rate_limit') {
+            return new Response(JSON.stringify({ 
+              error: 'rate_limit_exceeded',
+              message: 'Лимит сообщений исчерпан. Доступно 15 сообщений за 4 часа на бесплатном тарифе.',
+              messages_remaining: 0,
+              reset_hours: 4
+            }), {
+              status: 429,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+          if (limitCheck.reason === 'storage_limit') {
+            return new Response(JSON.stringify({ 
+              error: 'storage_limit_exceeded',
+              message: 'Лимит хранилища исчерпан. На бесплатном тарифе доступно 2 ГБ.',
+              storage_used: limitCheck.storage_used_bytes,
+              storage_limit: limitCheck.storage_limit_bytes
+            }), {
+              status: 429,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+        }
+
+        // Increment storage usage after successful message
+        await supabase.rpc('increment_storage_usage', { 
+          _user_id: user.id, 
+          _bytes: MESSAGE_SIZE_BYTES 
+        });
+
+        console.log('User limits check passed, messages remaining:', limitCheck?.messages_remaining);
       }
     }
 
