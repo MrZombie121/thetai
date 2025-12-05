@@ -158,7 +158,7 @@ const handler = async (req: Request): Promise<Response> => {
       body: JSON.stringify({
         sender: {
           name: "ThetAI",
-          email: "noreply@thetai.app"
+          email: "noreplyneuraforge@gmail.com"
         },
         to: [{ email: email }],
         subject: "Your ThetAI Verification Code",
