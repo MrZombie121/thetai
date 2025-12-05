@@ -144,7 +144,6 @@ const handler = async (req: Request): Promise<Response> => {
       </html>
     `;
 
-    // Try to send email, but if it fails due to domain verification, return code for dev mode
     const emailResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -163,21 +162,6 @@ const handler = async (req: Request): Promise<Response> => {
     
     if (!emailResponse.ok) {
       console.error("Resend error:", emailResult);
-      
-      // If it's a domain verification error, return code for dev mode
-      if (emailResult.message?.includes('verify a domain') || emailResult.statusCode === 403) {
-        console.log("Dev mode: returning OTP code in response");
-        return new Response(JSON.stringify({ 
-          success: true, 
-          devMode: true,
-          code: code,
-          message: "Email не отправлен (нужна верификация домена). Используйте код из уведомления."
-        }), {
-          status: 200,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        });
-      }
-      
       throw new Error(emailResult.message || "Failed to send email");
     }
 
