@@ -99,6 +99,7 @@ export default function Auth() {
       const { error: otpError } = await sendOtpEmail(email, isLogin ? 'login' : 'signup');
       
       if (otpError) {
+        setIsLoading(false);
         toast({
           title: t.auth.somethingWrong,
           variant: 'destructive',
@@ -108,13 +109,22 @@ export default function Auth() {
       
       // Store credentials for later
       setPendingAuth({ email, password });
-      setStep('otp');
       setResendCooldown(60);
-      toast({
-        title: t.auth.emailSent,
-      });
-    } finally {
       setIsLoading(false);
+      
+      // Delay step change to avoid DOM conflict with browser extensions
+      requestAnimationFrame(() => {
+        setStep('otp');
+        toast({
+          title: t.auth.emailSent,
+        });
+      });
+    } catch (error) {
+      setIsLoading(false);
+      toast({
+        title: t.auth.somethingWrong,
+        variant: 'destructive',
+      });
     }
   };
 
