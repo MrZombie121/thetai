@@ -19,7 +19,7 @@ export interface Message {
   created_at: string;
 }
 
-// Retry helper for network errors
+// Retry helper for network errors with session refresh
 const retryOperation = async <T,>(
   operation: () => Promise<T>,
   maxRetries: number = 3,
@@ -29,11 +29,19 @@ const retryOperation = async <T,>(
   
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
+      // Refresh session on retry attempts
+      if (attempt > 0) {
+        console.log(`Retry attempt ${attempt + 1}, refreshing session...`);
+        await supabase.auth.refreshSession();
+      }
+      
       return await operation();
     } catch (error: any) {
+      console.error(`Operation failed (attempt ${attempt + 1}):`, error);
       lastError = error;
       const isNetworkError = error?.message?.includes('NetworkError') || 
-                            error?.message?.includes('fetch');
+                            error?.message?.includes('fetch') ||
+                            error?.message?.includes('network');
       
       if (!isNetworkError || attempt === maxRetries - 1) {
         throw error;
@@ -75,6 +83,16 @@ export function useChats() {
   const createChat = useMutation({
     mutationFn: async (title?: string) => {
       if (!user) throw new Error('Not authenticated');
+      
+      // Ensure we have a valid session
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) {
+        // Try to refresh
+        const { error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError) {
+          throw new Error('Сессия истекла. Пожалуйста, войдите снова.');
+        }
+      }
       
       return retryOperation(async () => {
         const { data, error } = await supabase
