@@ -6,6 +6,13 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Map ThetAI model names to actual Lovable AI models
+const MODEL_MAP: Record<string, string> = {
+  'thetai-1.0-free': 'google/gemini-2.5-flash-lite',
+  'thetai-1.0-nano': 'google/gemini-2.5-flash',
+  'thetai-1.0-omni': 'google/gemini-2.5-pro',
+};
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -45,6 +52,8 @@ serve(async (req) => {
 
     // Get authorization header and check user limits
     const authHeader = req.headers.get('Authorization');
+    let selectedModel = 'thetai-1.0-free';
+    
     if (authHeader) {
       const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
       const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -55,6 +64,26 @@ serve(async (req) => {
       const { data: { user }, error: userError } = await supabase.auth.getUser(token);
 
       if (user && !userError) {
+        // Get user profile to check selected model and Plus status
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('selected_model, is_plus')
+          .eq('id', user.id)
+          .single();
+
+        if (profile) {
+          // Validate model selection based on Plus status
+          const modelId = profile.selected_model || 'thetai-1.0-free';
+          const isPlusModel = modelId === 'thetai-1.0-nano' || modelId === 'thetai-1.0-omni';
+          
+          if (isPlusModel && !profile.is_plus) {
+            // Fallback to free model if user doesn't have Plus
+            selectedModel = 'thetai-1.0-free';
+          } else {
+            selectedModel = modelId;
+          }
+        }
+
         // Check if user can send message
         const { data: limitCheck, error: limitError } = await supabase
           .rpc('can_user_send_message', { _user_id: user.id });
@@ -95,6 +124,9 @@ serve(async (req) => {
         console.log('User limits check passed, messages remaining:', limitCheck?.messages_remaining);
       }
     }
+    
+    const aiModel = MODEL_MAP[selectedModel] || 'google/gemini-2.5-flash-lite';
+    console.log('Using AI model:', aiModel, 'for ThetAI model:', selectedModel);
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     
@@ -125,7 +157,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: aiModel,
         messages: [
           {
             role: 'system',
