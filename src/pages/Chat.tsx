@@ -40,10 +40,11 @@ export default function Chat() {
     try {
       const newChat = await createChat.mutateAsync('Новый чат');
       setCurrentChatId(newChat.id);
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Create chat error:', error);
       toast({
         title: 'Ошибка',
-        description: 'Не удалось создать чат',
+        description: error?.message || 'Не удалось создать чат',
         variant: 'destructive',
       });
     }
@@ -60,10 +61,11 @@ export default function Chat() {
         const newChat = await createChat.mutateAsync('Новый чат');
         chatId = newChat.id;
         setCurrentChatId(newChat.id);
-      } catch (error) {
+      } catch (error: any) {
+        console.error('Create chat error in send:', error);
         toast({
           title: 'Ошибка',
-          description: 'Не удалось создать чат',
+          description: error?.message || 'Не удалось создать чат',
           variant: 'destructive',
         });
         return;
