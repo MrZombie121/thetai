@@ -63,7 +63,7 @@ export const translations = {
       modelOmni: "thetai-1.0-omni",
       modelFreeDesc: "Base model for Free tier",
       modelNanoDesc: "Fast and efficient",
-      modelOmniDesc: "Thinks fast, answers with quality",
+      modelOmniDesc: "Thinks longer, answers with quality",
       plusOnly: "Plus only",
     },
     language: {
@@ -137,7 +137,7 @@ export const translations = {
       modelOmni: "thetai-1.0-omni",
       modelFreeDesc: "Базовая модель для Free тарифа",
       modelNanoDesc: "Быстрая и эффективная",
-      modelOmniDesc: "Думает быстро, отвечает качественно",
+      modelOmniDesc: "Думает дольше, отвечает качественно",
       plusOnly: "Только Plus",
     },
     language: {
@@ -211,7 +211,7 @@ export const translations = {
       modelOmni: "thetai-1.0-omni",
       modelFreeDesc: "Базова модель для Free тарифу",
       modelNanoDesc: "Швидка та ефективна",
-      modelOmniDesc: "Думає швидко, відповідає якісно",
+      modelOmniDesc: "Думає довше, відповідає якісно",
       plusOnly: "Тільки Plus",
     },
     language: {
