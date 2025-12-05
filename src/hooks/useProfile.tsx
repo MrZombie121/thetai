@@ -10,6 +10,7 @@ export interface Profile {
   tcoins: number;
   is_plus: boolean;
   plus_expires_at: string | null;
+  storage_used_bytes: number;
   created_at: string;
   updated_at: string;
 }

@@ -133,6 +133,7 @@ export type Database = {
           id: string
           is_plus: boolean
           plus_expires_at: string | null
+          storage_used_bytes: number
           tcoins: number
           updated_at: string
         }
@@ -144,6 +145,7 @@ export type Database = {
           id: string
           is_plus?: boolean
           plus_expires_at?: string | null
+          storage_used_bytes?: number
           tcoins?: number
           updated_at?: string
         }
@@ -155,6 +157,7 @@ export type Database = {
           id?: string
           is_plus?: boolean
           plus_expires_at?: string | null
+          storage_used_bytes?: number
           tcoins?: number
           updated_at?: string
         }
@@ -192,7 +195,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      can_user_send_message: { Args: { _user_id: string }; Returns: Json }
+      count_user_messages_in_hours: {
+        Args: { _hours: number; _user_id: string }
+        Returns: number
+      }
+      get_user_storage_limit: { Args: { _user_id: string }; Returns: number }
+      increment_storage_usage: {
+        Args: { _bytes: number; _user_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
