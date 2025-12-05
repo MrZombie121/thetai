@@ -11,13 +11,42 @@ interface VerifyOtpRequest {
   code: string;
 }
 
+const MAX_VERIFY_ATTEMPTS_PER_HOUR = 10;
+
+function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email) && email.length <= 255;
+}
+
+function isValidCode(code: string): boolean {
+  return /^\d{6}$/.test(code);
+}
+
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { email, code }: VerifyOtpRequest = await req.json();
+    const body = await req.json();
+    const { email, code } = body as VerifyOtpRequest;
+    
+    // Input validation
+    if (!email || !isValidEmail(email)) {
+      console.log("Invalid email format:", email);
+      return new Response(
+        JSON.stringify({ valid: false, error: 'Invalid email format' }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+    
+    if (!code || !isValidCode(code)) {
+      console.log("Invalid code format:", code);
+      return new Response(
+        JSON.stringify({ valid: false, error: 'Invalid code format' }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
     
     console.log(`Verifying OTP for ${email}`);
 
@@ -25,11 +54,38 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Rate limiting check
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { count, error: countError } = await supabase
+      .from('otp_attempts')
+      .select('*', { count: 'exact', head: true })
+      .eq('email', email.toLowerCase())
+      .eq('attempt_type', 'verify')
+      .gte('created_at', oneHourAgo);
+
+    if (countError) {
+      console.error("Error checking rate limit:", countError);
+    }
+
+    if (count && count >= MAX_VERIFY_ATTEMPTS_PER_HOUR) {
+      console.log(`Rate limit exceeded for ${email}: ${count} verification attempts in last hour`);
+      return new Response(
+        JSON.stringify({ valid: false, error: 'Too many verification attempts. Please try again later.' }),
+        { status: 429, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Record this attempt
+    await supabase.from('otp_attempts').insert({
+      email: email.toLowerCase(),
+      attempt_type: 'verify'
+    });
+
     // Find valid OTP
     const { data: otpRecord, error: findError } = await supabase
       .from('otp_codes')
       .select('*')
-      .eq('email', email)
+      .eq('email', email.toLowerCase())
       .eq('code', code)
       .eq('used', false)
       .gt('expires_at', new Date().toISOString())

@@ -73,6 +73,27 @@ export type Database = {
           },
         ]
       }
+      otp_attempts: {
+        Row: {
+          attempt_type: string
+          created_at: string
+          email: string
+          id: string
+        }
+        Insert: {
+          attempt_type: string
+          created_at?: string
+          email: string
+          id?: string
+        }
+        Update: {
+          attempt_type?: string
+          created_at?: string
+          email?: string
+          id?: string
+        }
+        Relationships: []
+      }
       otp_codes: {
         Row: {
           code: string
