@@ -74,10 +74,10 @@ export default function Auth() {
   };
 
   const sendOtpEmail = async (userEmail: string, type: 'signup' | 'login') => {
-    const { error } = await supabase.functions.invoke('send-otp', {
+    const { data, error } = await supabase.functions.invoke('send-otp', {
       body: { email: userEmail, type },
     });
-    return { error };
+    return { data, error };
   };
 
   const verifyOtpCode = async (userEmail: string, code: string) => {
@@ -96,7 +96,7 @@ export default function Auth() {
     
     try {
       // For both login and signup, first send OTP for verification
-      const { error: otpError } = await sendOtpEmail(email, isLogin ? 'login' : 'signup');
+      const { data, error: otpError } = await sendOtpEmail(email, isLogin ? 'login' : 'signup');
       
       if (otpError) {
         toast({
@@ -106,13 +106,25 @@ export default function Auth() {
         return;
       }
       
+      // Check if dev mode - show OTP code in toast
+      if (data?.devMode && data?.code) {
+        toast({
+          title: '🔐 Dev Mode - Ваш код:',
+          description: data.code,
+          duration: 30000, // 30 seconds
+        });
+      }
+      
       // Store credentials for later
       setPendingAuth({ email, password });
       setStep('otp');
       setResendCooldown(60);
-      toast({
-        title: t.auth.emailSent,
-      });
+      
+      if (!data?.devMode) {
+        toast({
+          title: t.auth.emailSent,
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -196,7 +208,7 @@ export default function Auth() {
     
     setIsLoading(true);
     try {
-      const { error } = await sendOtpEmail(email, isLogin ? 'login' : 'signup');
+      const { data, error } = await sendOtpEmail(email, isLogin ? 'login' : 'signup');
       if (error) {
         toast({
           title: t.auth.somethingWrong,
@@ -204,9 +216,19 @@ export default function Auth() {
         });
       } else {
         setResendCooldown(60);
-        toast({
-          title: t.auth.emailSent,
-        });
+        
+        // Check if dev mode - show OTP code in toast
+        if (data?.devMode && data?.code) {
+          toast({
+            title: '🔐 Dev Mode - Ваш код:',
+            description: data.code,
+            duration: 30000,
+          });
+        } else {
+          toast({
+            title: t.auth.emailSent,
+          });
+        }
       }
     } finally {
       setIsLoading(false);
