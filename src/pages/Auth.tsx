@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { FloatingShapes } from '@/components/FloatingShapes';
 import { OtpInput } from '@/components/OtpInput';
 import { LanguageSelector } from '@/components/LanguageSelector';
+import { AuthErrorBoundary } from '@/components/AuthErrorBoundary';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useToast } from '@/hooks/use-toast';
@@ -252,6 +253,7 @@ export default function Auth() {
 
         {/* Form */}
         <div className="glass-card p-6">
+          <AuthErrorBoundary>
           {step === 'credentials' ? (
             <div key="credentials-form">
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -409,6 +411,7 @@ export default function Auth() {
               </form>
             </div>
           )}
+          </AuthErrorBoundary>
         </div>
 
         {/* Bonus info */}
