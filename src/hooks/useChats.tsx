@@ -19,6 +19,34 @@ export interface Message {
   created_at: string;
 }
 
+// Retry helper for network errors
+const retryOperation = async <T,>(
+  operation: () => Promise<T>,
+  maxRetries: number = 3,
+  delay: number = 1000
+): Promise<T> => {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error: any) {
+      lastError = error;
+      const isNetworkError = error?.message?.includes('NetworkError') || 
+                            error?.message?.includes('fetch');
+      
+      if (!isNetworkError || attempt === maxRetries - 1) {
+        throw error;
+      }
+      
+      // Wait before retry with exponential backoff
+      await new Promise(resolve => setTimeout(resolve, delay * (attempt + 1)));
+    }
+  }
+  
+  throw lastError;
+};
+
 export function useChats() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -27,33 +55,40 @@ export function useChats() {
     queryKey: ['chats', user?.id],
     queryFn: async () => {
       if (!user) return [];
-      const { data, error } = await supabase
-        .from('chats')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('updated_at', { ascending: false });
       
-      if (error) throw error;
-      return data as Chat[];
+      return retryOperation(async () => {
+        const { data, error } = await supabase
+          .from('chats')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('updated_at', { ascending: false });
+        
+        if (error) throw error;
+        return data as Chat[];
+      });
     },
     enabled: !!user,
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
   });
 
   const createChat = useMutation({
     mutationFn: async (title?: string) => {
       if (!user) throw new Error('Not authenticated');
       
-      const { data, error } = await supabase
-        .from('chats')
-        .insert({
-          user_id: user.id,
-          title: title || 'Новый чат'
-        })
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data as Chat;
+      return retryOperation(async () => {
+        const { data, error } = await supabase
+          .from('chats')
+          .insert({
+            user_id: user.id,
+            title: title || 'Новый чат'
+          })
+          .select()
+          .single();
+        
+        if (error) throw error;
+        return data as Chat;
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['chats', user?.id] });
@@ -62,12 +97,14 @@ export function useChats() {
 
   const updateChatTitle = useMutation({
     mutationFn: async ({ chatId, title }: { chatId: string; title: string }) => {
-      const { error } = await supabase
-        .from('chats')
-        .update({ title })
-        .eq('id', chatId);
-      
-      if (error) throw error;
+      return retryOperation(async () => {
+        const { error } = await supabase
+          .from('chats')
+          .update({ title })
+          .eq('id', chatId);
+        
+        if (error) throw error;
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['chats', user?.id] });
@@ -76,12 +113,14 @@ export function useChats() {
 
   const deleteChat = useMutation({
     mutationFn: async (chatId: string) => {
-      const { error } = await supabase
-        .from('chats')
-        .delete()
-        .eq('id', chatId);
-      
-      if (error) throw error;
+      return retryOperation(async () => {
+        const { error } = await supabase
+          .from('chats')
+          .delete()
+          .eq('id', chatId);
+        
+        if (error) throw error;
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['chats', user?.id] });
@@ -104,35 +143,42 @@ export function useMessages(chatId: string | null) {
     queryKey: ['messages', chatId],
     queryFn: async () => {
       if (!chatId) return [];
-      const { data, error } = await supabase
-        .from('messages')
-        .select('*')
-        .eq('chat_id', chatId)
-        .order('created_at', { ascending: true });
       
-      if (error) throw error;
-      return data as Message[];
+      return retryOperation(async () => {
+        const { data, error } = await supabase
+          .from('messages')
+          .select('*')
+          .eq('chat_id', chatId)
+          .order('created_at', { ascending: true });
+        
+        if (error) throw error;
+        return data as Message[];
+      });
     },
     enabled: !!chatId,
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
   });
 
   const addMessage = useMutation({
     mutationFn: async ({ role, content, imageUrl }: { role: 'user' | 'assistant'; content: string; imageUrl?: string }) => {
       if (!chatId) throw new Error('No chat selected');
       
-      const { data, error } = await supabase
-        .from('messages')
-        .insert({
-          chat_id: chatId,
-          role,
-          content,
-          image_url: imageUrl || null
-        })
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data as Message;
+      return retryOperation(async () => {
+        const { data, error } = await supabase
+          .from('messages')
+          .insert({
+            chat_id: chatId,
+            role,
+            content,
+            image_url: imageUrl || null
+          })
+          .select()
+          .single();
+        
+        if (error) throw error;
+        return data as Message;
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['messages', chatId] });
