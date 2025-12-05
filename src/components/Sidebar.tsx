@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Plus, MessageSquare, Trash2, Settings, Crown, LogOut, Menu, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, MessageSquare, Trash2, Settings, Crown, LogOut, Menu, X, Gamepad2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { TCoinBadge } from './TCoinBadge';
 import { useAuth } from '@/hooks/useAuth';
@@ -16,6 +17,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ currentChatId, onSelectChat, onNewChat, onOpenSettings }: SidebarProps) {
+  const navigate = useNavigate();
   const { signOut } = useAuth();
   const { profile } = useProfile();
   const { chats, deleteChat } = useChats();
@@ -87,6 +89,16 @@ export function Sidebar({ currentChatId, onSelectChat, onNewChat, onOpenSettings
           <span className="text-sm text-muted-foreground">{t.settings.balance}</span>
           <TCoinBadge amount={profile?.tcoins ?? 0} />
         </div>
+
+        <Button 
+          onClick={() => navigate('/games')} 
+          variant="outline" 
+          size="sm" 
+          className="w-full border-secondary/50 text-secondary hover:bg-secondary/10"
+        >
+          <Gamepad2 className="w-4 h-4" />
+          {t.games.earnCoins}
+        </Button>
         
         <div className="flex gap-2">
           <Button onClick={onOpenSettings} variant="glass" size="sm" className="flex-1">

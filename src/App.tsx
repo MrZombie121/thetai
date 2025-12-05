@@ -7,6 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { LanguageProvider } from "@/hooks/useLanguage";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import Games from "./pages/Games";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,6 +23,7 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/games" element={<Games />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
