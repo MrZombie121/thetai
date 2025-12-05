@@ -37,6 +37,8 @@ export default function Chat() {
   }, [messages]);
 
   const handleNewChat = async () => {
+    if (createChat.isPending) return; // Prevent multiple clicks
+    
     try {
       const newChat = await createChat.mutateAsync('Новый чат');
       setCurrentChatId(newChat.id);
@@ -44,7 +46,7 @@ export default function Chat() {
       console.error('Create chat error:', error);
       toast({
         title: 'Ошибка',
-        description: error?.message || 'Не удалось создать чат',
+        description: error?.message || 'Не удалось создать чат. Попробуйте обновить страницу.',
         variant: 'destructive',
       });
     }
