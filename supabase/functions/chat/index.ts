@@ -13,6 +13,34 @@ serve(async (req) => {
 
   try {
     const { messages } = await req.json();
+    
+    // Input validation
+    const MAX_MESSAGE_LENGTH = 10000;
+    const MAX_MESSAGES = 50;
+
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid messages array' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (messages.length > MAX_MESSAGES) {
+      return new Response(
+        JSON.stringify({ error: 'Too many messages' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    for (const msg of messages) {
+      if (typeof msg.content === 'string' && msg.content.length > MAX_MESSAGE_LENGTH) {
+        return new Response(
+          JSON.stringify({ error: 'Message too long' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     
     if (!LOVABLE_API_KEY) {
