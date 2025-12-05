@@ -106,8 +106,13 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Failed to generate verification code");
     }
 
-    // Send email via Resend API directly
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    // Send email via Brevo API
+    const brevoApiKey = Deno.env.get("BREVO_API_KEY");
+    
+    if (!brevoApiKey) {
+      console.error("BREVO_API_KEY not configured");
+      throw new Error("Email service not configured");
+    }
     
     const emailHtml = `
       <!DOCTYPE html>
@@ -144,28 +149,31 @@ const handler = async (req: Request): Promise<Response> => {
       </html>
     `;
 
-    const emailResponse = await fetch("https://api.resend.com/emails", {
+    const emailResponse = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${resendApiKey}`,
+        "api-key": brevoApiKey,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "ThetAI <onboarding@resend.dev>",
-        to: [email],
+        sender: {
+          name: "ThetAI",
+          email: "noreply@thetai.app"
+        },
+        to: [{ email: email }],
         subject: "Your ThetAI Verification Code",
-        html: emailHtml,
+        htmlContent: emailHtml,
       }),
     });
 
     const emailResult = await emailResponse.json();
     
     if (!emailResponse.ok) {
-      console.error("Resend error:", emailResult);
+      console.error("Brevo error:", emailResult);
       throw new Error(emailResult.message || "Failed to send email");
     }
 
-    console.log("Email sent successfully:", emailResult);
+    console.log("Email sent successfully via Brevo:", emailResult);
 
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
