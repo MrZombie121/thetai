@@ -154,6 +154,7 @@ const handler = async (req: Request): Promise<Response> => {
       headers: {
         "api-key": brevoApiKey,
         "Content-Type": "application/json",
+        "Accept": "application/json",
       },
       body: JSON.stringify({
         sender: {
@@ -166,11 +167,21 @@ const handler = async (req: Request): Promise<Response> => {
       }),
     });
 
-    const emailResult = await emailResponse.json();
+    const responseText = await emailResponse.text();
+    console.log("Brevo response status:", emailResponse.status);
+    console.log("Brevo response:", responseText);
+    
+    let emailResult;
+    try {
+      emailResult = JSON.parse(responseText);
+    } catch {
+      console.error("Brevo returned non-JSON:", responseText);
+      throw new Error("Email service error: " + responseText.substring(0, 200));
+    }
     
     if (!emailResponse.ok) {
       console.error("Brevo error:", emailResult);
-      throw new Error(emailResult.message || "Failed to send email");
+      throw new Error(emailResult.message || emailResult.error || "Failed to send email");
     }
 
     console.log("Email sent successfully via Brevo:", emailResult);
