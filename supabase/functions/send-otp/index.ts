@@ -11,8 +11,15 @@ interface SendOtpRequest {
   type: 'signup' | 'login';
 }
 
+const MAX_SEND_ATTEMPTS_PER_HOUR = 5;
+
 function generateOtp(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email) && email.length <= 255;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -21,30 +28,74 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { email, type }: SendOtpRequest = await req.json();
+    const body = await req.json();
+    const { email, type } = body as SendOtpRequest;
     
+    // Input validation
+    if (!email || !isValidEmail(email)) {
+      console.log("Invalid email format:", email);
+      return new Response(
+        JSON.stringify({ error: 'Invalid email format' }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+    
+    if (!type || !['signup', 'login'].includes(type)) {
+      console.log("Invalid type:", type);
+      return new Response(
+        JSON.stringify({ error: 'Invalid request type' }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Rate limiting check
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { count, error: countError } = await supabase
+      .from('otp_attempts')
+      .select('*', { count: 'exact', head: true })
+      .eq('email', email.toLowerCase())
+      .eq('attempt_type', 'send')
+      .gte('created_at', oneHourAgo);
+
+    if (countError) {
+      console.error("Error checking rate limit:", countError);
+    }
+
+    if (count && count >= MAX_SEND_ATTEMPTS_PER_HOUR) {
+      console.log(`Rate limit exceeded for ${email}: ${count} attempts in last hour`);
+      return new Response(
+        JSON.stringify({ error: 'Too many OTP requests. Please try again later.' }),
+        { status: 429, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Record this attempt
+    await supabase.from('otp_attempts').insert({
+      email: email.toLowerCase(),
+      attempt_type: 'send'
+    });
+
     console.log(`Sending OTP to ${email} for ${type}`);
 
     // Generate OTP code
     const code = generateOtp();
 
-    // Store OTP in database
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
     // Delete any existing unused codes for this email
     await supabase
       .from('otp_codes')
       .delete()
-      .eq('email', email)
+      .eq('email', email.toLowerCase())
       .eq('used', false);
 
     // Insert new OTP code
     const { error: insertError } = await supabase
       .from('otp_codes')
       .insert({
-        email,
+        email: email.toLowerCase(),
         code,
         type,
         expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
