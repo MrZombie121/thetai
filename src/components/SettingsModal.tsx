@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { X, Crown, Coins, Sparkles, Zap, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { TCoinBadge } from './TCoinBadge';
+import { LanguageSelector } from './LanguageSelector';
 import { useProfile } from '@/hooks/useProfile';
+import { useLanguage } from '@/hooks/useLanguage';
 import { useToast } from '@/hooks/use-toast';
 
 interface SettingsModalProps {
@@ -12,6 +14,7 @@ interface SettingsModalProps {
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const { profile, upgradeToPlusAccount } = useProfile();
+  const { t } = useLanguage();
   const { toast } = useToast();
   const [isUpgrading, setIsUpgrading] = useState(false);
 
@@ -20,8 +23,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const handleUpgrade = async () => {
     if (!profile || profile.tcoins < 500) {
       toast({
-        title: 'Недостаточно TCoins',
-        description: 'Вам нужно 500 TCoins для подписки Plus',
+        title: t.settings.notEnough,
         variant: 'destructive'
       });
       return;
@@ -31,13 +33,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     try {
       await upgradeToPlusAccount.mutateAsync();
       toast({
-        title: 'Добро пожаловать в Plus!',
-        description: 'Подписка активирована на 1 месяц',
+        title: t.settings.plusActive,
       });
     } catch (error) {
       toast({
-        title: 'Ошибка',
-        description: 'Не удалось активировать подписку',
+        title: t.auth.somethingWrong,
         variant: 'destructive'
       });
     } finally {
@@ -46,9 +46,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   };
 
   const plusFeatures = [
-    { icon: Zap, text: 'Безлимитные сообщения' },
-    { icon: Sparkles, text: 'Приоритетные ответы' },
-    { icon: Crown, text: 'Эксклюзивные функции' },
+    { icon: Zap, text: 'Unlimited messages' },
+    { icon: Sparkles, text: 'Priority responses' },
+    { icon: Crown, text: 'Exclusive features' },
   ];
 
   return (
@@ -65,26 +65,28 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           <X className="w-5 h-5" />
         </Button>
 
-        <h2 className="text-2xl font-bold mb-6 gradient-text">Настройки</h2>
+        <h2 className="text-2xl font-bold mb-6 gradient-text">{t.settings.title}</h2>
+
+        {/* Language selector */}
+        <div className="flex items-center justify-between mb-6 glass-card p-4">
+          <span className="text-sm text-muted-foreground">{t.language.select}</span>
+          <LanguageSelector />
+        </div>
 
         {/* Profile info */}
         <div className="glass-card p-4 mb-6">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <p className="text-sm text-muted-foreground">Ваш баланс</p>
+              <p className="text-sm text-muted-foreground">{t.settings.balance}</p>
               <TCoinBadge amount={profile?.tcoins ?? 0} size="lg" className="mt-1" />
             </div>
             {profile?.is_plus && (
               <div className="flex items-center gap-2 text-secondary">
                 <Crown className="w-5 h-5" />
-                <span className="font-semibold">Plus Active</span>
+                <span className="font-semibold">{t.settings.plusActive}</span>
               </div>
             )}
           </div>
-          
-          <p className="text-sm text-muted-foreground">
-            TCoins начисляются за активность и могут использоваться для покупки подписки Plus.
-          </p>
         </div>
 
         {/* Plus subscription */}
@@ -95,8 +97,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 <Crown className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h3 className="font-bold text-lg">ThetAI Plus</h3>
-                <p className="text-sm text-muted-foreground">Улучшенный опыт</p>
+                <h3 className="font-bold text-lg">{t.settings.plus}</h3>
               </div>
             </div>
 
@@ -115,7 +116,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <div className="flex items-center gap-2">
                 <Coins className="w-5 h-5 text-tcoin" />
                 <span className="font-bold text-lg">500</span>
-                <span className="text-muted-foreground">/ месяц</span>
               </div>
               
               <Button
@@ -123,7 +123,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 variant="gradient"
                 disabled={isUpgrading || (profile?.tcoins ?? 0) < 500}
               >
-                {isUpgrading ? 'Обработка...' : 'Купить Plus'}
+                {t.settings.upgrade}
               </Button>
             </div>
           </div>
@@ -132,9 +132,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         {profile?.is_plus && (
           <div className="text-center p-6 glass-card">
             <Check className="w-12 h-12 text-primary mx-auto mb-3" />
-            <h3 className="font-bold text-lg mb-1">Вы уже Plus!</h3>
+            <h3 className="font-bold text-lg mb-1">{t.settings.plusActive}!</h3>
             <p className="text-sm text-muted-foreground">
-              Подписка активна до {profile.plus_expires_at ? new Date(profile.plus_expires_at).toLocaleDateString('ru-RU') : 'бессрочно'}
+              {t.settings.plusExpires}: {profile.plus_expires_at ? new Date(profile.plus_expires_at).toLocaleDateString() : '∞'}
             </p>
           </div>
         )}

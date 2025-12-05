@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { TCoinBadge } from './TCoinBadge';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
-import { useChats, Chat } from '@/hooks/useChats';
+import { useChats } from '@/hooks/useChats';
+import { useLanguage } from '@/hooks/useLanguage';
 import { cn } from '@/lib/utils';
 
 interface SidebarProps {
@@ -18,6 +19,7 @@ export function Sidebar({ currentChatId, onSelectChat, onNewChat, onOpenSettings
   const { signOut } = useAuth();
   const { profile } = useProfile();
   const { chats, deleteChat } = useChats();
+  const { t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
 
   const handleDeleteChat = async (e: React.MouseEvent, chatId: string) => {
@@ -45,7 +47,7 @@ export function Sidebar({ currentChatId, onSelectChat, onNewChat, onOpenSettings
         
         <Button onClick={onNewChat} variant="gradient" className="w-full">
           <Plus className="w-4 h-4" />
-          Новый чат
+          {t.chat.newChat}
         </Button>
       </div>
 
@@ -82,14 +84,14 @@ export function Sidebar({ currentChatId, onSelectChat, onNewChat, onOpenSettings
       {/* Footer */}
       <div className="p-4 border-t border-border space-y-3">
         <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">Баланс</span>
+          <span className="text-sm text-muted-foreground">{t.settings.balance}</span>
           <TCoinBadge amount={profile?.tcoins ?? 0} />
         </div>
         
         <div className="flex gap-2">
           <Button onClick={onOpenSettings} variant="glass" size="sm" className="flex-1">
             <Settings className="w-4 h-4" />
-            Настройки
+            {t.chat.settings}
           </Button>
           <Button onClick={signOut} variant="ghost" size="sm">
             <LogOut className="w-4 h-4" />

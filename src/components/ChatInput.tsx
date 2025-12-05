@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { Send, Image, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useLanguage } from '@/hooks/useLanguage';
 import { cn } from '@/lib/utils';
 
 interface ChatInputProps {
@@ -14,6 +15,7 @@ export function ChatInput({ onSend, isLoading, disabled }: ChatInputProps) {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { t } = useLanguage();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,7 +96,7 @@ export function ChatInput({ onSend, isLoading, disabled }: ChatInputProps) {
               adjustTextareaHeight();
             }}
             onKeyDown={handleKeyDown}
-            placeholder="Напишите сообщение..."
+            placeholder={t.chat.typeMessage}
             disabled={isLoading || disabled}
             rows={1}
             className={cn(
@@ -118,10 +120,6 @@ export function ChatInput({ onSend, isLoading, disabled }: ChatInputProps) {
           </Button>
         </div>
       </div>
-      
-      <p className="text-xs text-center text-muted-foreground mt-2">
-        ThetAI может ошибаться. Проверяйте важную информацию.
-      </p>
     </form>
   );
 }
