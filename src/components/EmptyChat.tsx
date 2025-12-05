@@ -1,16 +1,19 @@
 import { Sparkles, MessageSquare, Image, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useLanguage } from '@/hooks/useLanguage';
 
 interface EmptyChatProps {
   onSuggestionClick: (text: string) => void;
 }
 
 export function EmptyChat({ onSuggestionClick }: EmptyChatProps) {
+  const { t } = useLanguage();
+  
   const suggestions = [
-    { icon: MessageSquare, text: 'Объясни квантовые вычисления простыми словами' },
-    { icon: Sparkles, text: 'Напиши короткую историю о путешествии во времени' },
-    { icon: Image, text: 'Помоги мне с идеями для логотипа' },
-    { icon: Zap, text: 'Какие тренды в технологиях в 2024?' },
+    { icon: MessageSquare, text: t.chat.starters.code },
+    { icon: Sparkles, text: t.chat.starters.learn },
+    { icon: Image, text: t.chat.starters.create },
+    { icon: Zap, text: t.chat.starters.analyze },
   ];
 
   return (
@@ -24,10 +27,10 @@ export function EmptyChat({ onSuggestionClick }: EmptyChatProps) {
       </div>
 
       <h2 className="text-3xl font-bold mb-2 text-center">
-        <span className="gradient-text">Привет!</span> Я ThetAI
+        <span className="gradient-text">{t.chat.emptyTitle}</span>
       </h2>
       <p className="text-muted-foreground text-center mb-8 max-w-md">
-        Ваш AI-ассистент, готовый помочь с любыми вопросами. Начните диалог с одного из предложений или напишите своё.
+        {t.chat.emptySubtitle}
       </p>
 
       {/* Suggestions */}

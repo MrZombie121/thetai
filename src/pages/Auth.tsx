@@ -4,15 +4,12 @@ import { Eye, EyeOff, Mail, Lock, User, ArrowRight, Loader2, ArrowLeft, RefreshC
 import { Button } from '@/components/ui/button';
 import { FloatingShapes } from '@/components/FloatingShapes';
 import { OtpInput } from '@/components/OtpInput';
+import { LanguageSelector } from '@/components/LanguageSelector';
 import { useAuth } from '@/hooks/useAuth';
+import { useLanguage } from '@/hooks/useLanguage';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
-
-const authSchema = z.object({
-  email: z.string().email('Введите корректный email'),
-  password: z.string().min(6, 'Пароль должен быть минимум 6 символов'),
-  displayName: z.string().min(2, 'Имя должно быть минимум 2 символа').optional(),
-});
 
 type AuthStep = 'credentials' | 'otp';
 
@@ -27,16 +24,24 @@ export default function Auth() {
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [pendingAuth, setPendingAuth] = useState<{ email: string; password: string } | null>(null);
   
-  const { signIn, signUp, verifyOtp, resendOtp, user } = useAuth();
+  const { user } = useAuth();
+  const { t } = useLanguage();
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  const authSchema = z.object({
+    email: z.string().email(t.auth.emailPlaceholder),
+    password: z.string().min(6, t.auth.passwordPlaceholder),
+    displayName: z.string().min(2, t.auth.namePlaceholder).optional(),
+  });
+
   useEffect(() => {
-    if (user) {
+    if (user && step !== 'otp') {
       navigate('/');
     }
-  }, [user, navigate]);
+  }, [user, navigate, step]);
 
   useEffect(() => {
     if (resendCooldown > 0) {
@@ -68,6 +73,20 @@ export default function Auth() {
     }
   };
 
+  const sendOtpEmail = async (userEmail: string, type: 'signup' | 'login') => {
+    const { error } = await supabase.functions.invoke('send-otp', {
+      body: { email: userEmail, type },
+    });
+    return { error };
+  };
+
+  const verifyOtpCode = async (userEmail: string, code: string) => {
+    const { data, error } = await supabase.functions.invoke('verify-otp', {
+      body: { email: userEmail, code },
+    });
+    return { data, error };
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -76,55 +95,24 @@ export default function Auth() {
     setIsLoading(true);
     
     try {
-      if (isLogin) {
-        const { error, needsVerification } = await signIn(email, password);
-        if (needsVerification) {
-          setStep('otp');
-          setResendCooldown(60);
-          toast({
-            title: 'Код отправлен',
-            description: 'Проверьте вашу почту для получения кода подтверждения',
-          });
-        } else if (error) {
-          if (error.message.includes('Invalid login')) {
-            toast({
-              title: 'Ошибка входа',
-              description: 'Неверный email или пароль',
-              variant: 'destructive',
-            });
-          } else {
-            toast({
-              title: 'Ошибка',
-              description: error.message,
-              variant: 'destructive',
-            });
-          }
-        }
-      } else {
-        const { error, needsVerification } = await signUp(email, password, displayName);
-        if (error) {
-          if (error.message.includes('already registered')) {
-            toast({
-              title: 'Пользователь существует',
-              description: 'Этот email уже зарегистрирован. Попробуйте войти.',
-              variant: 'destructive',
-            });
-          } else {
-            toast({
-              title: 'Ошибка регистрации',
-              description: error.message,
-              variant: 'destructive',
-            });
-          }
-        } else if (needsVerification) {
-          setStep('otp');
-          setResendCooldown(60);
-          toast({
-            title: 'Код отправлен',
-            description: 'Проверьте вашу почту для получения кода подтверждения',
-          });
-        }
+      // For both login and signup, first send OTP for verification
+      const { error: otpError } = await sendOtpEmail(email, isLogin ? 'login' : 'signup');
+      
+      if (otpError) {
+        toast({
+          title: t.auth.somethingWrong,
+          variant: 'destructive',
+        });
+        return;
       }
+      
+      // Store credentials for later
+      setPendingAuth({ email, password });
+      setStep('otp');
+      setResendCooldown(60);
+      toast({
+        title: t.auth.emailSent,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -135,8 +123,7 @@ export default function Auth() {
     
     if (otpCode.length !== 6) {
       toast({
-        title: 'Ошибка',
-        description: 'Введите 6-значный код',
+        title: t.auth.invalidOtp,
         variant: 'destructive',
       });
       return;
@@ -145,19 +132,60 @@ export default function Auth() {
     setIsLoading(true);
     
     try {
-      const { error } = await verifyOtp(email, otpCode, 'signup');
-      if (error) {
+      // Verify our custom OTP
+      const { data, error } = await verifyOtpCode(email, otpCode);
+      
+      if (error || !data?.valid) {
         toast({
-          title: 'Неверный код',
-          description: 'Проверьте код и попробуйте снова',
+          title: data?.error === 'Invalid or expired code' ? t.auth.otpExpired : t.auth.invalidOtp,
           variant: 'destructive',
         });
-      } else {
-        toast({
-          title: isLogin ? 'Добро пожаловать!' : 'Аккаунт создан!',
-          description: isLogin ? 'Вы успешно вошли' : 'Вам начислено 100 TCoins!',
-        });
+        return;
       }
+
+      // OTP is valid, now perform the actual auth
+      if (isLogin) {
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: pendingAuth?.email || email,
+          password: pendingAuth?.password || password,
+        });
+        
+        if (signInError) {
+          toast({
+            title: t.auth.invalidCredentials,
+            variant: 'destructive',
+          });
+          return;
+        }
+      } else {
+        // Sign up the user (auto-confirmed)
+        const { error: signUpError } = await supabase.auth.signUp({
+          email: pendingAuth?.email || email,
+          password: pendingAuth?.password || password,
+          options: {
+            data: {
+              display_name: displayName || email.split('@')[0]
+            }
+          }
+        });
+        
+        if (signUpError) {
+          if (signUpError.message.includes('already registered')) {
+            toast({
+              title: t.auth.userExists,
+              variant: 'destructive',
+            });
+          } else {
+            toast({
+              title: t.auth.somethingWrong,
+              variant: 'destructive',
+            });
+          }
+          return;
+        }
+      }
+      
+      navigate('/');
     } finally {
       setIsLoading(false);
     }
@@ -168,18 +196,16 @@ export default function Auth() {
     
     setIsLoading(true);
     try {
-      const { error } = await resendOtp(email, 'signup');
+      const { error } = await sendOtpEmail(email, isLogin ? 'login' : 'signup');
       if (error) {
         toast({
-          title: 'Ошибка',
-          description: 'Не удалось отправить код',
+          title: t.auth.somethingWrong,
           variant: 'destructive',
         });
       } else {
         setResendCooldown(60);
         toast({
-          title: 'Код отправлен',
-          description: 'Проверьте вашу почту',
+          title: t.auth.emailSent,
         });
       }
     } finally {
@@ -190,11 +216,17 @@ export default function Auth() {
   const handleBackToCredentials = () => {
     setStep('credentials');
     setOtpCode('');
+    setPendingAuth(null);
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
       <FloatingShapes />
+      
+      {/* Language selector */}
+      <div className="absolute top-4 right-4 z-20">
+        <LanguageSelector />
+      </div>
       
       <div className="w-full max-w-md relative z-10">
         {/* Logo */}
@@ -205,10 +237,10 @@ export default function Auth() {
           <h1 className="text-3xl font-bold gradient-text">ThetAI</h1>
           <p className="text-muted-foreground mt-2">
             {step === 'otp' 
-              ? 'Подтвердите email' 
+              ? t.auth.verifyEmail 
               : isLogin 
-                ? 'Войдите в свой аккаунт' 
-                : 'Создайте аккаунт'}
+                ? t.auth.signIn 
+                : t.auth.signUp}
           </p>
         </div>
 
@@ -218,14 +250,14 @@ export default function Auth() {
             <form onSubmit={handleSubmit} className="space-y-4">
               {!isLogin && (
                 <div>
-                  <label className="text-sm text-muted-foreground mb-1.5 block">Имя</label>
+                  <label className="text-sm text-muted-foreground mb-1.5 block">{t.auth.displayName}</label>
                   <div className="relative">
                     <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                     <input
                       type="text"
                       value={displayName}
                       onChange={(e) => setDisplayName(e.target.value)}
-                      placeholder="Ваше имя"
+                      placeholder={t.auth.namePlaceholder}
                       className="w-full bg-muted/50 border border-border rounded-lg pl-10 pr-4 py-3 outline-none focus:border-primary transition-colors"
                     />
                   </div>
@@ -236,14 +268,14 @@ export default function Auth() {
               )}
 
               <div>
-                <label className="text-sm text-muted-foreground mb-1.5 block">Email</label>
+                <label className="text-sm text-muted-foreground mb-1.5 block">{t.auth.email}</label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="your@email.com"
+                    placeholder={t.auth.emailPlaceholder}
                     className="w-full bg-muted/50 border border-border rounded-lg pl-10 pr-4 py-3 outline-none focus:border-primary transition-colors"
                   />
                 </div>
@@ -253,14 +285,14 @@ export default function Auth() {
               </div>
 
               <div>
-                <label className="text-sm text-muted-foreground mb-1.5 block">Пароль</label>
+                <label className="text-sm text-muted-foreground mb-1.5 block">{t.auth.password}</label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <input
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
+                    placeholder={t.auth.passwordPlaceholder}
                     className="w-full bg-muted/50 border border-border rounded-lg pl-10 pr-12 py-3 outline-none focus:border-primary transition-colors"
                   />
                   <button
@@ -287,7 +319,7 @@ export default function Auth() {
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
                   <>
-                    {isLogin ? 'Войти' : 'Создать аккаунт'}
+                    {isLogin ? t.auth.signIn : t.auth.signUp}
                     <ArrowRight className="w-5 h-5" />
                   </>
                 )}
@@ -300,14 +332,14 @@ export default function Auth() {
                   <Mail className="w-8 h-8 text-primary" />
                 </div>
                 <p className="text-sm text-muted-foreground mb-2">
-                  Код отправлен на
+                  {t.auth.otpSent}
                 </p>
                 <p className="font-medium text-foreground">{email}</p>
               </div>
 
               <div>
                 <label className="text-sm text-muted-foreground mb-3 block text-center">
-                  Введите 6-значный код
+                  {t.auth.enterCode}
                 </label>
                 <OtpInput
                   value={otpCode}
@@ -327,7 +359,7 @@ export default function Auth() {
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
                   <>
-                    Подтвердить
+                    {t.auth.verify}
                     <ArrowRight className="w-5 h-5" />
                   </>
                 )}
@@ -340,7 +372,7 @@ export default function Auth() {
                   className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
                 >
                   <ArrowLeft className="w-4 h-4" />
-                  Назад
+                  {t.auth.back}
                 </button>
                 
                 <button
@@ -350,7 +382,7 @@ export default function Auth() {
                   className="text-sm text-primary hover:text-primary/80 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <RefreshCw className="w-4 h-4" />
-                  {resendCooldown > 0 ? `Повторить (${resendCooldown}с)` : 'Отправить снова'}
+                  {resendCooldown > 0 ? `${t.auth.resendIn} ${resendCooldown}${t.auth.seconds}` : t.auth.resendCode}
                 </button>
               </div>
             </form>
@@ -362,9 +394,9 @@ export default function Auth() {
                 onClick={() => setIsLogin(!isLogin)}
                 className="text-muted-foreground hover:text-foreground transition-colors text-sm"
               >
-                {isLogin ? 'Нет аккаунта? ' : 'Уже есть аккаунт? '}
+                {isLogin ? t.auth.noAccount : t.auth.hasAccount}{' '}
                 <span className="text-primary font-medium">
-                  {isLogin ? 'Зарегистрироваться' : 'Войти'}
+                  {isLogin ? t.auth.signUp : t.auth.signIn}
                 </span>
               </button>
             </div>
@@ -375,7 +407,7 @@ export default function Auth() {
         {!isLogin && step === 'credentials' && (
           <div className="mt-4 text-center animate-fade-in">
             <p className="text-sm text-muted-foreground">
-              🎁 При регистрации вы получите <span className="text-tcoin font-semibold">100 TCoins</span>
+              🎁 <span className="text-tcoin font-semibold">100 TCoins</span>
             </p>
           </div>
         )}
