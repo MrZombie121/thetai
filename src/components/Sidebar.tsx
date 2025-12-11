@@ -174,7 +174,7 @@ export function Sidebar({ currentChatId, onSelectChat, onNewChat, onOpenSettings
 
       {/* Sidebar */}
       <aside className={cn(
-        'fixed md:relative h-full w-72 glass-card flex flex-col z-50 transition-transform duration-300',
+        'fixed md:relative h-screen w-72 glass-card flex flex-col z-50 transition-transform duration-300',
         'md:translate-x-0',
         isOpen ? 'translate-x-0' : '-translate-x-full'
       )}>
