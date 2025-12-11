@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Sidebar } from '@/components/Sidebar';
 import { ChatMessage } from '@/components/ChatMessage';
 import { ChatInput } from '@/components/ChatInput';
@@ -15,6 +15,7 @@ import { Loader2 } from 'lucide-react';
 export default function Chat() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
@@ -25,6 +26,14 @@ export default function Chat() {
   const { chats, createChat, updateChatTitle } = useChats();
   const { messages, addMessage } = useMessages(currentChatId);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Handle chat ID from URL query params
+  useEffect(() => {
+    const chatFromUrl = searchParams.get('chat');
+    if (chatFromUrl && chats.some(c => c.id === chatFromUrl)) {
+      setCurrentChatId(chatFromUrl);
+    }
+  }, [searchParams, chats]);
 
   useEffect(() => {
     if (!authLoading && !user) {

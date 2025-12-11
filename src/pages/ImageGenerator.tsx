@@ -125,8 +125,8 @@ export default function ImageGenerator() {
       
       <Sidebar
         currentChatId={null}
-        onSelectChat={() => navigate('/chat')}
-        onNewChat={() => navigate('/chat')}
+        onSelectChat={(chatId) => navigate(`/?chat=${chatId}`)}
+        onNewChat={() => navigate('/')}
         onOpenSettings={() => setIsSettingsOpen(true)}
       />
 
