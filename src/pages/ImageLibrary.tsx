@@ -103,7 +103,12 @@ export default function ImageLibrary() {
   return (
     <div className="min-h-screen bg-background flex overflow-hidden">
       <FloatingShapes />
-      <Sidebar onOpenSettings={() => setSettingsOpen(true)} showChats={false} />
+      <Sidebar 
+        currentChatId={null}
+        onSelectChat={(chatId) => navigate(`/?chat=${chatId}`)}
+        onNewChat={() => navigate('/')}
+        onOpenSettings={() => setSettingsOpen(true)} 
+      />
       
       <main className="flex-1 flex flex-col overflow-hidden">
         <header className="border-b border-border/50 p-4 bg-background/80 backdrop-blur-sm">
