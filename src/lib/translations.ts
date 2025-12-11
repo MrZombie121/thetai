@@ -92,6 +92,9 @@ export const translations = {
       promoAlreadyUsed: "You already used this promo code",
       promoMaxUses: "This promo code has reached its limit",
       discountedPrice: "Discounted price",
+      cancelSubscription: "Cancel subscription",
+      subscriptionCancelled: "Subscription cancelled",
+      cancelConfirm: "Are you sure you want to cancel?",
     },
     language: {
       select: "Language",
@@ -271,6 +274,9 @@ export const translations = {
       promoAlreadyUsed: "Вы уже использовали этот промокод",
       promoMaxUses: "Этот промокод достиг лимита использований",
       discountedPrice: "Цена со скидкой",
+      cancelSubscription: "Отменить подписку",
+      subscriptionCancelled: "Подписка отменена",
+      cancelConfirm: "Вы уверены, что хотите отменить?",
     },
     language: {
       select: "Язык",
@@ -450,6 +456,9 @@ export const translations = {
       promoAlreadyUsed: "Ви вже використали цей промокод",
       promoMaxUses: "Цей промокод досягнув ліміту використань",
       discountedPrice: "Ціна зі знижкою",
+      cancelSubscription: "Скасувати підписку",
+      subscriptionCancelled: "Підписку скасовано",
+      cancelConfirm: "Ви впевнені, що хочете скасувати?",
     },
     language: {
       select: "Мова",

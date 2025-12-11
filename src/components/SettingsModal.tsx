@@ -525,9 +525,31 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           <div className="text-center p-6 glass-card">
             <Check className="w-12 h-12 text-primary mx-auto mb-3" />
             <h3 className="font-bold text-lg mb-1">{t.settings.plusActive}!</h3>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground mb-4">
               {t.settings.plusExpires}: {profile.plus_expires_at ? new Date(profile.plus_expires_at).toLocaleDateString() : '∞'}
             </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-destructive hover:text-destructive"
+              onClick={async () => {
+                if (!confirm(t.settings.cancelConfirm)) return;
+                try {
+                  const { error } = await supabase
+                    .from('profiles')
+                    .update({ is_plus: false, plus_expires_at: null })
+                    .eq('id', user!.id);
+                  if (error) throw error;
+                  queryClient.invalidateQueries({ queryKey: ['profile', user!.id] });
+                  queryClient.invalidateQueries({ queryKey: ['userLimits', user!.id] });
+                  toast({ title: t.settings.subscriptionCancelled });
+                } catch {
+                  toast({ title: t.auth.somethingWrong, variant: 'destructive' });
+                }
+              }}
+            >
+              {t.settings.cancelSubscription}
+            </Button>
           </div>
         )}
       </div>
