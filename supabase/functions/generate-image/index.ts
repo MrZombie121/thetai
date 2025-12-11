@@ -154,7 +154,7 @@ serve(async (req) => {
         messages: [
           {
             role: 'user',
-            content: `Generate an image based on this description: ${prompt}`
+            content: prompt
           }
         ],
         modalities: ['image', 'text']
