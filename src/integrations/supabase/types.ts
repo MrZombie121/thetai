@@ -208,6 +208,68 @@ export type Database = {
         }
         Relationships: []
       }
+      promo_code_uses: {
+        Row: {
+          id: string
+          promo_code_id: string
+          used_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          promo_code_id: string
+          used_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          promo_code_id?: string
+          used_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "promo_code_uses_promo_code_id_fkey"
+            columns: ["promo_code_id"]
+            isOneToOne: false
+            referencedRelation: "promo_codes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      promo_codes: {
+        Row: {
+          code: string
+          created_at: string
+          current_uses: number
+          discount_percent: number
+          expires_at: string | null
+          id: string
+          is_active: boolean
+          max_uses: number | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          current_uses?: number
+          discount_percent: number
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          max_uses?: number | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          current_uses?: number
+          discount_percent?: number
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          max_uses?: number | null
+        }
+        Relationships: []
+      }
       tcoin_transactions: {
         Row: {
           amount: number
@@ -240,6 +302,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_promo_and_upgrade: {
+        Args: { _promo_id: string; _user_id: string }
+        Returns: Json
+      }
       can_user_send_message: { Args: { _user_id: string }; Returns: Json }
       check_and_reset_usage: { Args: { _user_id: string }; Returns: undefined }
       count_user_messages_in_hours: {
@@ -256,6 +322,10 @@ export type Database = {
       increment_storage_usage: {
         Args: { _bytes: number; _user_id: string }
         Returns: undefined
+      }
+      validate_promo_code: {
+        Args: { _code: string; _user_id: string }
+        Returns: Json
       }
     }
     Enums: {
