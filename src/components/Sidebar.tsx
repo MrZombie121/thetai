@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, MessageSquare, Trash2, Settings, Crown, LogOut, Menu, X, Gamepad2, ImageIcon } from 'lucide-react';
+import { Plus, MessageSquare, Trash2, Settings, Crown, LogOut, Menu, X, Gamepad2, ImageIcon, Mic } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { TCoinBadge } from './TCoinBadge';
 import { useAuth } from '@/hooks/useAuth';
@@ -90,24 +90,33 @@ export function Sidebar({ currentChatId, onSelectChat, onNewChat, onOpenSettings
           <TCoinBadge amount={profile?.tcoins ?? 0} />
         </div>
 
-        <div className="flex gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <Button 
             onClick={() => navigate('/games')} 
             variant="outline" 
             size="sm" 
-            className="flex-1 border-secondary/50 text-secondary hover:bg-secondary/10"
+            className="border-secondary/50 text-secondary hover:bg-secondary/10"
+            title={t.games.earnCoins}
           >
             <Gamepad2 className="w-4 h-4" />
-            {t.games.earnCoins}
           </Button>
           <Button 
             onClick={() => navigate('/image-generator')} 
             variant="outline" 
             size="sm" 
-            className="flex-1 border-primary/50 text-primary hover:bg-primary/10"
+            className="border-primary/50 text-primary hover:bg-primary/10"
+            title={t.sidebar.imageGenerator}
           >
             <ImageIcon className="w-4 h-4" />
-            {t.sidebar.imageGenerator}
+          </Button>
+          <Button 
+            onClick={() => navigate('/voice-chat')} 
+            variant="outline" 
+            size="sm" 
+            className="border-accent/50 text-accent hover:bg-accent/10"
+            title={t.sidebar.voiceChat}
+          >
+            <Mic className="w-4 h-4" />
           </Button>
         </div>
         
