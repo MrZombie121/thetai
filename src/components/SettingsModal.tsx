@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Crown, Coins, Sparkles, Zap, Check, Bot, Lock, User, Clock, MessageSquare, Image, Pencil } from 'lucide-react';
+import { X, Crown, Coins, Sparkles, Zap, Check, Bot, Lock, User, Clock, MessageSquare, Image, Pencil, Tag, Percent } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { TCoinBadge } from './TCoinBadge';
@@ -7,7 +7,9 @@ import { LanguageSelector } from './LanguageSelector';
 import { useProfile } from '@/hooks/useProfile';
 import { useLanguage } from '@/hooks/useLanguage';
 import { useToast } from '@/hooks/use-toast';
-
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -52,12 +54,17 @@ function formatTimeRemaining(resetAt: string, t: any): string {
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const { profile, limits, upgradeToPlusAccount, updateSelectedModel, updateDisplayName } = useProfile();
+  const { user } = useAuth();
   const { t } = useLanguage();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [isUpgrading, setIsUpgrading] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [newName, setNewName] = useState('');
   const [isSavingName, setIsSavingName] = useState(false);
+  const [promoCode, setPromoCode] = useState('');
+  const [isValidatingPromo, setIsValidatingPromo] = useState(false);
+  const [appliedPromo, setAppliedPromo] = useState<{ discount_percent: number; promo_id: string } | null>(null);
 
   useEffect(() => {
     if (profile?.display_name) {
@@ -65,10 +72,60 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   }, [profile?.display_name]);
 
+  useEffect(() => {
+    // Reset promo when modal closes
+    if (!isOpen) {
+      setPromoCode('');
+      setAppliedPromo(null);
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
+  const calculatePrice = () => {
+    const basePrice = 500;
+    if (appliedPromo) {
+      return basePrice - (basePrice * appliedPromo.discount_percent / 100);
+    }
+    return basePrice;
+  };
+
+  const handleValidatePromo = async () => {
+    if (!promoCode.trim() || !user) return;
+    
+    setIsValidatingPromo(true);
+    try {
+      const { data, error } = await supabase.rpc('validate_promo_code', {
+        _code: promoCode.trim(),
+        _user_id: user.id
+      });
+      
+      if (error) throw error;
+      
+      const result = data as { valid: boolean; reason?: string; discount_percent?: number; promo_id?: string };
+      
+      if (result.valid) {
+        setAppliedPromo({
+          discount_percent: result.discount_percent!,
+          promo_id: result.promo_id!
+        });
+        toast({ title: `${t.settings.promoApplied} -${result.discount_percent}%` });
+      } else {
+        let errorMsg = t.settings.invalidPromo;
+        if (result.reason === 'already_used') errorMsg = t.settings.promoAlreadyUsed;
+        if (result.reason === 'max_uses_reached') errorMsg = t.settings.promoMaxUses;
+        toast({ title: errorMsg, variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: t.auth.somethingWrong, variant: 'destructive' });
+    } finally {
+      setIsValidatingPromo(false);
+    }
+  };
+
   const handleUpgrade = async () => {
-    if (!profile || profile.tcoins < 500) {
+    const price = calculatePrice();
+    if (!profile || profile.tcoins < price) {
       toast({
         title: t.settings.notEnough,
         variant: 'destructive'
@@ -78,10 +135,28 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
     setIsUpgrading(true);
     try {
-      await upgradeToPlusAccount.mutateAsync();
+      if (appliedPromo) {
+        // Use promo upgrade function
+        const { data, error } = await supabase.rpc('apply_promo_and_upgrade', {
+          _user_id: user!.id,
+          _promo_id: appliedPromo.promo_id
+        });
+        if (error) throw error;
+        const result = data as { success: boolean; reason?: string };
+        if (!result.success) {
+          throw new Error(result.reason);
+        }
+        // Refresh profile data
+        queryClient.invalidateQueries({ queryKey: ['profile', user!.id] });
+        queryClient.invalidateQueries({ queryKey: ['userLimits', user!.id] });
+      } else {
+        await upgradeToPlusAccount.mutateAsync();
+      }
       toast({
         title: t.settings.plusActive,
       });
+      setAppliedPromo(null);
+      setPromoCode('');
     } catch (error) {
       toast({
         title: t.auth.somethingWrong,
@@ -379,16 +454,66 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               ))}
             </ul>
 
+            {/* Promo Code Input */}
+            <div className="mb-4">
+              <label className="text-sm text-muted-foreground mb-2 block flex items-center gap-2">
+                <Tag className="w-4 h-4" />
+                {t.settings.promoCode}
+              </label>
+              <div className="flex gap-2">
+                <Input
+                  value={promoCode}
+                  onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                  placeholder={t.settings.promoCodePlaceholder}
+                  className="flex-1 font-mono"
+                  disabled={!!appliedPromo}
+                />
+                {!appliedPromo ? (
+                  <Button 
+                    onClick={handleValidatePromo} 
+                    disabled={isValidatingPromo || !promoCode.trim()}
+                    size="sm"
+                    variant="outline"
+                  >
+                    {t.settings.applyPromo}
+                  </Button>
+                ) : (
+                  <Button 
+                    onClick={() => { setAppliedPromo(null); setPromoCode(''); }}
+                    size="sm"
+                    variant="ghost"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+              {appliedPromo && (
+                <div className="mt-2 flex items-center gap-2 text-sm text-green-500">
+                  <Percent className="w-4 h-4" />
+                  <span>{t.settings.promoDiscount}: {appliedPromo.discount_percent}%</span>
+                </div>
+              )}
+            </div>
+
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Coins className="w-5 h-5 text-tcoin" />
-                <span className="font-bold text-lg">500</span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <Coins className="w-5 h-5 text-tcoin" />
+                  {appliedPromo ? (
+                    <>
+                      <span className="font-bold text-lg">{calculatePrice()}</span>
+                      <span className="text-sm text-muted-foreground line-through">500</span>
+                    </>
+                  ) : (
+                    <span className="font-bold text-lg">500</span>
+                  )}
+                </div>
               </div>
               
               <Button
                 onClick={handleUpgrade}
                 variant="gradient"
-                disabled={isUpgrading || (profile?.tcoins ?? 0) < 500}
+                disabled={isUpgrading || (profile?.tcoins ?? 0) < calculatePrice()}
               >
                 {t.settings.upgrade}
               </Button>
