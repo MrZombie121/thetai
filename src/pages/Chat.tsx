@@ -121,21 +121,21 @@ export default function Chat() {
         // Not JSON, use message as-is
       }
 
-      if (errorData?.error === 'rate_limit_exceeded') {
+      if (errorData?.error === 'messages_limit_exceeded') {
         toast({
           title: 'Лимит сообщений исчерпан',
-          description: 'На бесплатном тарифе доступно 15 сообщений за 4 часа. Перейдите на ThetAI Plus для безлимитного общения!',
+          description: 'Free: 50 сообщений / 6 часов, Plus: 1000 сообщений / 6 часов. Перейдите на ThetAI Plus!',
           variant: 'destructive',
         });
-      } else if (errorData?.error === 'storage_limit_exceeded') {
+      } else if (errorData?.error === 'images_prompt_limit_exceeded') {
         toast({
-          title: 'Лимит хранилища исчерпан',
-          description: 'На бесплатном тарифе доступно 2 ГБ. Перейдите на ThetAI Plus для 100 ГБ хранилища!',
+          title: 'Лимит изображений исчерпан',
+          description: 'Free: 10 изображений / 6 часов, Plus: 100 изображений / 6 часов. Перейдите на ThetAI Plus!',
           variant: 'destructive',
         });
-      } else if (error.message?.includes('429') || error.status === 429) {
+      } else if (errorData?.error === 'rate_limit_exceeded' || error.message?.includes('429') || error.status === 429) {
         toast({
-          title: 'Лимит сообщений исчерпан',
+          title: 'Лимит исчерпан',
           description: 'Подождите немного или перейдите на ThetAI Plus.',
           variant: 'destructive',
         });

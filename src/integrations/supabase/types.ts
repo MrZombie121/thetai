@@ -131,12 +131,17 @@ export type Database = {
           display_name: string | null
           email: string | null
           id: string
+          image_gen_reset_at: string
+          images_generated_today: number
+          images_in_prompts_used: number
           is_plus: boolean
+          messages_used: number
           plus_expires_at: string | null
           selected_model: string
           storage_used_bytes: number
           tcoins: number
           updated_at: string
+          usage_reset_at: string
         }
         Insert: {
           avatar_url?: string | null
@@ -144,12 +149,17 @@ export type Database = {
           display_name?: string | null
           email?: string | null
           id: string
+          image_gen_reset_at?: string
+          images_generated_today?: number
+          images_in_prompts_used?: number
           is_plus?: boolean
+          messages_used?: number
           plus_expires_at?: string | null
           selected_model?: string
           storage_used_bytes?: number
           tcoins?: number
           updated_at?: string
+          usage_reset_at?: string
         }
         Update: {
           avatar_url?: string | null
@@ -157,12 +167,17 @@ export type Database = {
           display_name?: string | null
           email?: string | null
           id?: string
+          image_gen_reset_at?: string
+          images_generated_today?: number
+          images_in_prompts_used?: number
           is_plus?: boolean
+          messages_used?: number
           plus_expires_at?: string | null
           selected_model?: string
           storage_used_bytes?: number
           tcoins?: number
           updated_at?: string
+          usage_reset_at?: string
         }
         Relationships: []
       }
@@ -199,11 +214,18 @@ export type Database = {
     }
     Functions: {
       can_user_send_message: { Args: { _user_id: string }; Returns: Json }
+      check_and_reset_usage: { Args: { _user_id: string }; Returns: undefined }
       count_user_messages_in_hours: {
         Args: { _hours: number; _user_id: string }
         Returns: number
       }
+      get_user_limits: { Args: { _user_id: string }; Returns: Json }
       get_user_storage_limit: { Args: { _user_id: string }; Returns: number }
+      increment_image_gen_usage: { Args: { _user_id: string }; Returns: Json }
+      increment_message_usage: {
+        Args: { _has_image?: boolean; _user_id: string }
+        Returns: Json
+      }
       increment_storage_usage: {
         Args: { _bytes: number; _user_id: string }
         Returns: undefined

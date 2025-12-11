@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, MessageSquare, Trash2, Settings, Crown, LogOut, Menu, X, Gamepad2 } from 'lucide-react';
+import { Plus, MessageSquare, Trash2, Settings, Crown, LogOut, Menu, X, Gamepad2, ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { TCoinBadge } from './TCoinBadge';
 import { useAuth } from '@/hooks/useAuth';
@@ -90,15 +90,26 @@ export function Sidebar({ currentChatId, onSelectChat, onNewChat, onOpenSettings
           <TCoinBadge amount={profile?.tcoins ?? 0} />
         </div>
 
-        <Button 
-          onClick={() => navigate('/games')} 
-          variant="outline" 
-          size="sm" 
-          className="w-full border-secondary/50 text-secondary hover:bg-secondary/10"
-        >
-          <Gamepad2 className="w-4 h-4" />
-          {t.games.earnCoins}
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            onClick={() => navigate('/games')} 
+            variant="outline" 
+            size="sm" 
+            className="flex-1 border-secondary/50 text-secondary hover:bg-secondary/10"
+          >
+            <Gamepad2 className="w-4 h-4" />
+            {t.games.earnCoins}
+          </Button>
+          <Button 
+            onClick={() => navigate('/image-generator')} 
+            variant="outline" 
+            size="sm" 
+            className="flex-1 border-primary/50 text-primary hover:bg-primary/10"
+          >
+            <ImageIcon className="w-4 h-4" />
+            {t.sidebar.imageGenerator}
+          </Button>
+        </div>
         
         <div className="flex gap-2">
           <Button onClick={onOpenSettings} variant="glass" size="sm" className="flex-1">

@@ -8,6 +8,7 @@ import { LanguageProvider } from "@/hooks/useLanguage";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Games from "./pages/Games";
+import ImageGenerator from "./pages/ImageGenerator";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,6 +25,7 @@ const App = () => (
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<Auth />} />
               <Route path="/games" element={<Games />} />
+              <Route path="/image-generator" element={<ImageGenerator />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

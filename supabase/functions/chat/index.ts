@@ -13,6 +13,60 @@ const MODEL_MAP: Record<string, string> = {
   'thetai-1.0-omni': 'google/gemini-2.5-pro',
 };
 
+// Different system prompts for different models
+const MODEL_PERSONALITIES: Record<string, string> = {
+  'thetai-1.0-free': `You are ThetAI Free - a helpful and efficient AI assistant.
+
+CRITICAL RULE: You MUST detect the language of the user's message and respond ONLY in that same language.
+- If the user writes in English → respond in English
+- If the user writes in Russian → respond in Russian (отвечай на русском)
+- If the user writes in Ukrainian → respond in Ukrainian (відповідай українською)
+
+Your qualities:
+- You give concise and direct answers
+- You focus on the main points without excessive details
+- You use Markdown for formatting when helpful
+- You can analyze images if attached
+
+Never mention that you are based on Gemini or Google. Introduce yourself as ThetAI.`,
+
+  'thetai-1.0-nano': `You are ThetAI Nano - a fast and smart AI assistant optimized for quick responses.
+
+CRITICAL RULE: You MUST detect the language of the user's message and respond ONLY in that same language.
+- If the user writes in English → respond in English
+- If the user writes in Russian → respond in Russian (отвечай на русском)
+- If the user writes in Ukrainian → respond in Ukrainian (відповідай українською)
+
+Your qualities:
+- You are optimized for speed and efficiency
+- You give quick, accurate, and well-structured answers
+- You use bullet points and lists for clarity
+- You excel at coding tasks and technical questions
+- You can analyze images if attached
+- You balance speed with quality
+
+Never mention that you are based on Gemini or Google. Introduce yourself as ThetAI Nano.`,
+
+  'thetai-1.0-omni': `You are ThetAI Omni - the most advanced and thoughtful AI assistant.
+
+CRITICAL RULE: You MUST detect the language of the user's message and respond ONLY in that same language.
+- If the user writes in English → respond in English
+- If the user writes in Russian → respond in Russian (отвечай на русском)
+- If the user writes in Ukrainian → respond in Ukrainian (відповідай українською)
+
+Your qualities:
+- You take time to think deeply about complex problems
+- You provide comprehensive, detailed, and nuanced answers
+- You excel at creative tasks, analysis, and reasoning
+- You consider multiple perspectives and edge cases
+- You can analyze images in detail if attached
+- You use advanced formatting for clarity
+- You ask clarifying questions for complex tasks
+- You provide step-by-step explanations when helpful
+
+Never mention that you are based on Gemini or Google. Introduce yourself as ThetAI Omni.`,
+};
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -24,8 +78,7 @@ serve(async (req) => {
     
     // Input validation
     const MAX_MESSAGE_LENGTH = 10000;
-    const MAX_CONTEXT_MESSAGES = 100; // Allow more messages but truncate for API
-    const MESSAGE_SIZE_BYTES = 10240; // 10 KB per message
+    const MAX_CONTEXT_MESSAGES = 100;
 
     if (!Array.isArray(messages) || messages.length === 0) {
       return new Response(
@@ -34,7 +87,7 @@ serve(async (req) => {
       );
     }
 
-    // Truncate to last 100 messages for context (keep conversation flowing)
+    // Truncate to last 100 messages for context
     let processedMessages = messages;
     if (messages.length > MAX_CONTEXT_MESSAGES) {
       processedMessages = messages.slice(-MAX_CONTEXT_MESSAGES);
@@ -49,6 +102,9 @@ serve(async (req) => {
         );
       }
     }
+
+    // Check if message contains an image
+    const hasImage = processedMessages.some((msg: any) => msg.imageUrl);
 
     // Get authorization header and check user limits
     const authHeader = req.headers.get('Authorization');
@@ -77,37 +133,32 @@ serve(async (req) => {
           const isPlusModel = modelId === 'thetai-1.0-nano' || modelId === 'thetai-1.0-omni';
           
           if (isPlusModel && !profile.is_plus) {
-            // Fallback to free model if user doesn't have Plus
             selectedModel = 'thetai-1.0-free';
           } else {
             selectedModel = modelId;
           }
         }
 
-        // Check if user can send message
-        const { data: limitCheck, error: limitError } = await supabase
-          .rpc('can_user_send_message', { _user_id: user.id });
+        // Check and increment usage with new limits
+        const { data: usageResult, error: usageError } = await supabase
+          .rpc('increment_message_usage', { _user_id: user.id, _has_image: hasImage });
 
-        if (limitError) {
-          console.error('Error checking message limits:', limitError);
-        } else if (limitCheck && !limitCheck.allowed) {
-          if (limitCheck.reason === 'rate_limit') {
+        if (usageError) {
+          console.error('Error checking usage limits:', usageError);
+        } else if (usageResult && !usageResult.allowed) {
+          if (usageResult.reason === 'messages_limit') {
             return new Response(JSON.stringify({ 
-              error: 'rate_limit_exceeded',
-              message: 'Лимит сообщений исчерпан. Доступно 15 сообщений за 4 часа на бесплатном тарифе.',
-              messages_remaining: 0,
-              reset_hours: 4
+              error: 'messages_limit_exceeded',
+              message: 'Лимит сообщений исчерпан. Free: 50 сообщений / 6 часов, Plus: 1000 сообщений / 6 часов.',
             }), {
               status: 429,
               headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             });
           }
-          if (limitCheck.reason === 'storage_limit') {
+          if (usageResult.reason === 'images_prompt_limit') {
             return new Response(JSON.stringify({ 
-              error: 'storage_limit_exceeded',
-              message: 'Лимит хранилища исчерпан. На бесплатном тарифе доступно 2 ГБ.',
-              storage_used: limitCheck.storage_used_bytes,
-              storage_limit: limitCheck.storage_limit_bytes
+              error: 'images_prompt_limit_exceeded',
+              message: 'Лимит изображений в промтах исчерпан. Free: 10 изображений / 6 часов, Plus: 100 изображений / 6 часов.',
             }), {
               status: 429,
               headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -115,17 +166,12 @@ serve(async (req) => {
           }
         }
 
-        // Increment storage usage after successful message
-        await supabase.rpc('increment_storage_usage', { 
-          _user_id: user.id, 
-          _bytes: MESSAGE_SIZE_BYTES 
-        });
-
-        console.log('User limits check passed, messages remaining:', limitCheck?.messages_remaining);
+        console.log('User usage check passed');
       }
     }
     
     const aiModel = MODEL_MAP[selectedModel] || 'google/gemini-2.5-flash-lite';
+    const systemPrompt = MODEL_PERSONALITIES[selectedModel] || MODEL_PERSONALITIES['thetai-1.0-free'];
     console.log('Using AI model:', aiModel, 'for ThetAI model:', selectedModel);
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
@@ -159,26 +205,7 @@ serve(async (req) => {
       body: JSON.stringify({
         model: aiModel,
         messages: [
-          {
-            role: 'system',
-            content: `You are ThetAI - a friendly and intelligent AI assistant.
-
-CRITICAL RULE: You MUST detect the language of the user's message and respond ONLY in that same language.
-- If the user writes in English → respond in English
-- If the user writes in Russian → respond in Russian (отвечай на русском)
-- If the user writes in Ukrainian → respond in Ukrainian (відповідай українською)
-- If the user writes in any other language → respond in that language
-
-Your qualities:
-- You are always polite and ready to help
-- You respond in a structured and clear manner
-- You use Markdown for formatting (lists, code, highlighting)
-- You can analyze images if attached
-- You give practical and accurate answers
-- You ask clarifying questions when needed
-
-Never mention that you are based on Gemini or Google. Introduce yourself as ThetAI.`
-          },
+          { role: 'system', content: systemPrompt },
           ...formattedMessages
         ],
       }),
