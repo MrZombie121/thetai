@@ -12,8 +12,28 @@ export interface Profile {
   plus_expires_at: string | null;
   storage_used_bytes: number;
   selected_model: string;
+  messages_used: number;
+  images_in_prompts_used: number;
+  images_generated_today: number;
+  usage_reset_at: string;
+  image_gen_reset_at: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface UserLimits {
+  is_plus: boolean;
+  messages_used: number;
+  messages_limit: number;
+  messages_remaining: number;
+  images_in_prompts_used: number;
+  images_prompt_limit: number;
+  images_prompt_remaining: number;
+  images_generated_today: number;
+  images_gen_limit: number;
+  images_gen_remaining: number;
+  usage_resets_at: string;
+  image_gen_resets_at: string;
 }
 
 export function useProfile() {
@@ -121,11 +141,42 @@ export function useProfile() {
     },
   });
 
+  const updateDisplayName = useMutation({
+    mutationFn: async (displayName: string) => {
+      if (!user) throw new Error('Not authenticated');
+      
+      const { error } = await supabase
+        .from('profiles')
+        .update({ display_name: displayName })
+        .eq('id', user.id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['profile', user?.id] });
+    },
+  });
+
+  const { data: limits, refetch: refetchLimits } = useQuery({
+    queryKey: ['userLimits', user?.id],
+    queryFn: async () => {
+      if (!user) return null;
+      const { data, error } = await supabase.rpc('get_user_limits', { _user_id: user.id });
+      if (error) throw error;
+      return data as unknown as UserLimits;
+    },
+    enabled: !!user,
+    refetchInterval: 60000, // Refetch every minute
+  });
+
   return {
     profile,
     isLoading,
+    limits,
+    refetchLimits,
     updateTcoins,
     upgradeToPlusAccount,
     updateSelectedModel,
+    updateDisplayName,
   };
 }
