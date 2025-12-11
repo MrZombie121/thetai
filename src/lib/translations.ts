@@ -155,6 +155,18 @@ export const translations = {
     sidebar: {
       imageGenerator: "Image Generator",
       voiceChat: "Voice Chat",
+      imageLibrary: "Image Library",
+    },
+    imageLibrary: {
+      title: "Image Library",
+      description: "Your generated images",
+      empty: "No images yet",
+      emptySubtitle: "Generate your first image!",
+      delete: "Delete",
+      deleted: "Image deleted",
+      prompt: "Prompt",
+      generatedAt: "Generated",
+      goToGenerator: "Go to Generator",
     },
   },
   ru: {
@@ -313,6 +325,18 @@ export const translations = {
     sidebar: {
       imageGenerator: "Генератор изображений",
       voiceChat: "Голосовой чат",
+      imageLibrary: "Библиотека изображений",
+    },
+    imageLibrary: {
+      title: "Библиотека изображений",
+      description: "Ваши сгенерированные изображения",
+      empty: "Пока нет изображений",
+      emptySubtitle: "Создайте своё первое изображение!",
+      delete: "Удалить",
+      deleted: "Изображение удалено",
+      prompt: "Промт",
+      generatedAt: "Создано",
+      goToGenerator: "Перейти к генератору",
     },
   },
   uk: {
@@ -471,6 +495,18 @@ export const translations = {
     sidebar: {
       imageGenerator: "Генератор зображень",
       voiceChat: "Голосовий чат",
+      imageLibrary: "Бібліотека зображень",
+    },
+    imageLibrary: {
+      title: "Бібліотека зображень",
+      description: "Ваші згенеровані зображення",
+      empty: "Поки немає зображень",
+      emptySubtitle: "Створіть своє перше зображення!",
+      delete: "Видалити",
+      deleted: "Зображення видалено",
+      prompt: "Промт",
+      generatedAt: "Створено",
+      goToGenerator: "Перейти до генератора",
     },
   },
 };

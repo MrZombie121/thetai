@@ -10,6 +10,7 @@ import Auth from "./pages/Auth";
 import Games from "./pages/Games";
 import ImageGenerator from "./pages/ImageGenerator";
 import VoiceChat from "./pages/VoiceChat";
+import ImageLibrary from "./pages/ImageLibrary";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +29,7 @@ const App = () => (
               <Route path="/games" element={<Games />} />
               <Route path="/image-generator" element={<ImageGenerator />} />
               <Route path="/voice-chat" element={<VoiceChat />} />
+              <Route path="/image-library" element={<ImageLibrary />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
