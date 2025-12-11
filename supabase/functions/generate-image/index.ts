@@ -6,53 +6,68 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Add watermark to base64 image
+// Add watermark to base64 image using canvas
 async function addWatermark(base64Image: string): Promise<string> {
-  // Import canvas library for Deno
   const { createCanvas, loadImage } = await import("https://deno.land/x/canvas@v1.4.2/mod.ts");
   
   // Remove data URL prefix if present
   const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, '');
   
   // Decode base64 to Uint8Array
-  const imageBytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+  const binaryString = atob(base64Data);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
   
   // Load the image
-  const image = await loadImage(imageBytes);
+  const image = await loadImage(bytes);
+  const width = image.width();
+  const height = image.height();
   
   // Create canvas with image dimensions
-  const canvas = createCanvas(image.width(), image.height());
+  const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
   
   // Draw the original image
   ctx.drawImage(image, 0, 0);
   
   // Configure watermark style
-  const fontSize = Math.max(24, Math.min(image.width(), image.height()) * 0.05);
-  ctx.font = `bold ${fontSize}px Arial`;
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-  ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
-  ctx.lineWidth = 2;
+  const fontSize = Math.max(28, Math.min(width, height) * 0.06);
+  ctx.font = `bold ${fontSize}px sans-serif`;
   
-  // Position watermark in bottom-right corner
   const watermarkText = 'ThetAI';
-  const textMetrics = ctx.measureText(watermarkText);
-  const x = image.width() - textMetrics.width - 20;
-  const y = image.height() - 20;
+  const metrics = ctx.measureText(watermarkText);
+  const textWidth = metrics.width;
+  const padding = 20;
   
-  // Draw watermark with outline for visibility
-  ctx.strokeText(watermarkText, x, y);
+  // Position in bottom-right corner
+  const x = width - textWidth - padding;
+  const y = height - padding;
+  
+  // Draw shadow/outline for visibility
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+  ctx.fillText(watermarkText, x + 2, y + 2);
+  
+  // Draw main text
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
   ctx.fillText(watermarkText, x, y);
   
-  // Convert back to base64
-  const watermarkedBuffer = canvas.toBuffer('image/png');
-  const watermarkedBase64 = btoa(String.fromCharCode(...new Uint8Array(watermarkedBuffer)));
+  // Convert to PNG buffer
+  const buffer = canvas.toBuffer('image/png');
+  
+  // Convert buffer to base64
+  const uint8Array = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < uint8Array.length; i++) {
+    binary += String.fromCharCode(uint8Array[i]);
+  }
+  const watermarkedBase64 = btoa(binary);
   
   return `data:image/png;base64,${watermarkedBase64}`;
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -74,7 +89,6 @@ serve(async (req) => {
       );
     }
 
-    // Get authorization header and check user limits
     const authHeader = req.headers.get('Authorization');
     
     if (!authHeader) {
@@ -88,7 +102,6 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Extract JWT token and get user
     const token = authHeader.replace('Bearer ', '');
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
 
@@ -115,7 +128,7 @@ serve(async (req) => {
       const resetsAt = usageResult.resets_at ? new Date(usageResult.resets_at).toLocaleString('ru-RU') : 'скоро';
       return new Response(JSON.stringify({ 
         error: 'images_gen_limit_exceeded',
-        message: `Лимит генерации изображений исчерпан. Free: 5 изображений / день, Plus: 15 изображений / день. Обновится: ${resetsAt}`,
+        message: `Лимит генерации изображений исчерпан. Free: 5/день, Plus: 15/день. Обновится: ${resetsAt}`,
       }), {
         status: 429,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -159,20 +172,12 @@ serve(async (req) => {
         });
       }
       
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: 'Payment required' }), {
-          status: 402,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      
       throw new Error(`AI Gateway error: ${response.status}`);
     }
 
     const data = await response.json();
     console.log('Image generation response received');
 
-    // Extract image from response
     const message = data.choices?.[0]?.message;
     const images = message?.images;
     const textContent = message?.content || '';
@@ -188,19 +193,68 @@ serve(async (req) => {
     }
 
     let imageUrl = images[0]?.image_url?.url;
+    let finalImageUrl = imageUrl;
 
-    // Add watermark to the image
+    // Add watermark
     try {
       console.log('Adding watermark to image...');
-      imageUrl = await addWatermark(imageUrl);
+      finalImageUrl = await addWatermark(imageUrl);
       console.log('Watermark added successfully');
     } catch (watermarkError) {
       console.error('Failed to add watermark:', watermarkError);
-      // Continue with original image if watermark fails
+      finalImageUrl = imageUrl;
+    }
+
+    // Save to storage and database
+    try {
+      const base64Data = finalImageUrl.replace(/^data:image\/\w+;base64,/, '');
+      const binaryString = atob(base64Data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+
+      const fileName = `${user.id}/${Date.now()}.png`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('generated-images')
+        .upload(fileName, bytes, {
+          contentType: 'image/png',
+          upsert: false
+        });
+
+      if (uploadError) {
+        console.error('Storage upload error:', uploadError);
+      } else {
+        const { data: publicUrlData } = supabase.storage
+          .from('generated-images')
+          .getPublicUrl(fileName);
+
+        const storedImageUrl = publicUrlData.publicUrl;
+
+        // Save to database
+        const { error: dbError } = await supabase
+          .from('generated_images')
+          .insert({
+            user_id: user.id,
+            prompt: prompt,
+            image_url: storedImageUrl,
+            description: textContent
+          });
+
+        if (dbError) {
+          console.error('Database insert error:', dbError);
+        } else {
+          console.log('Image saved to library');
+          finalImageUrl = storedImageUrl;
+        }
+      }
+    } catch (saveError) {
+      console.error('Failed to save image to library:', saveError);
     }
 
     return new Response(JSON.stringify({ 
-      imageUrl,
+      imageUrl: finalImageUrl,
       description: textContent 
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

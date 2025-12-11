@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, MessageSquare, Trash2, Settings, Crown, LogOut, Menu, X, Gamepad2, ImageIcon, Mic } from 'lucide-react';
+import { Plus, MessageSquare, Trash2, Settings, Crown, LogOut, Menu, X, Gamepad2, ImageIcon, Mic, FolderOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { TCoinBadge } from './TCoinBadge';
 import { useAuth } from '@/hooks/useAuth';
@@ -10,13 +10,14 @@ import { useLanguage } from '@/hooks/useLanguage';
 import { cn } from '@/lib/utils';
 
 interface SidebarProps {
-  currentChatId: string | null;
-  onSelectChat: (chatId: string) => void;
-  onNewChat: () => void;
+  currentChatId?: string | null;
+  onSelectChat?: (chatId: string) => void;
+  onNewChat?: () => void;
   onOpenSettings: () => void;
+  showChats?: boolean;
 }
 
-export function Sidebar({ currentChatId, onSelectChat, onNewChat, onOpenSettings }: SidebarProps) {
+export function Sidebar({ currentChatId, onSelectChat, onNewChat, onOpenSettings, showChats = true }: SidebarProps) {
   const navigate = useNavigate();
   const { signOut } = useAuth();
   const { profile } = useProfile();
@@ -47,40 +48,49 @@ export function Sidebar({ currentChatId, onSelectChat, onNewChat, onOpenSettings
           </div>
         </div>
         
-        <Button onClick={onNewChat} variant="gradient" className="w-full">
-          <Plus className="w-4 h-4" />
-          {t.chat.newChat}
-        </Button>
+        {showChats && onNewChat && (
+          <Button onClick={onNewChat} variant="gradient" className="w-full">
+            <Plus className="w-4 h-4" />
+            {t.chat.newChat}
+          </Button>
+        )}
       </div>
 
       {/* Chats list */}
       <div className="flex-1 overflow-y-auto scrollbar-thin p-2">
-        <div className="space-y-1">
-          {chats.map((chat) => (
-            <div
-              key={chat.id}
-              onClick={() => {
-                onSelectChat(chat.id);
-                setIsOpen(false);
-              }}
-              className={cn(
-                'group flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200',
-                currentChatId === chat.id
-                  ? 'bg-primary/10 text-primary border border-primary/20'
-                  : 'hover:bg-muted text-muted-foreground hover:text-foreground'
-              )}
-            >
-              <MessageSquare className="w-4 h-4 shrink-0" />
-              <span className="flex-1 truncate text-sm">{chat.title}</span>
-              <button
-                onClick={(e) => handleDeleteChat(e, chat.id)}
-                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/20 rounded transition-all"
+        {showChats && onSelectChat ? (
+          <div className="space-y-1">
+            {chats.map((chat) => (
+              <div
+                key={chat.id}
+                onClick={() => {
+                  onSelectChat(chat.id);
+                  setIsOpen(false);
+                }}
+                className={cn(
+                  'group flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200',
+                  currentChatId === chat.id
+                    ? 'bg-primary/10 text-primary border border-primary/20'
+                    : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+                )}
               >
-                <Trash2 className="w-3.5 h-3.5 text-destructive" />
-              </button>
-            </div>
-          ))}
-        </div>
+                <MessageSquare className="w-4 h-4 shrink-0" />
+                <span className="flex-1 truncate text-sm">{chat.title}</span>
+                <button
+                  onClick={(e) => handleDeleteChat(e, chat.id)}
+                  className="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/20 rounded transition-all"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="p-4 text-center text-muted-foreground text-sm">
+            <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
+            <p>{t.chat.newChat}</p>
+          </div>
+        )}
       </div>
 
       {/* Footer */}
@@ -90,7 +100,7 @@ export function Sidebar({ currentChatId, onSelectChat, onNewChat, onOpenSettings
           <TCoinBadge amount={profile?.tcoins ?? 0} />
         </div>
 
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-4 gap-2">
           <Button 
             onClick={() => navigate('/games')} 
             variant="outline" 
@@ -108,6 +118,15 @@ export function Sidebar({ currentChatId, onSelectChat, onNewChat, onOpenSettings
             title={t.sidebar.imageGenerator}
           >
             <ImageIcon className="w-4 h-4" />
+          </Button>
+          <Button 
+            onClick={() => navigate('/image-library')} 
+            variant="outline" 
+            size="sm" 
+            className="border-purple-500/50 text-purple-500 hover:bg-purple-500/10"
+            title={t.sidebar.imageLibrary}
+          >
+            <FolderOpen className="w-4 h-4" />
           </Button>
           <Button 
             onClick={() => navigate('/voice-chat')} 
