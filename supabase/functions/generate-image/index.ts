@@ -6,6 +6,51 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Add watermark to base64 image
+async function addWatermark(base64Image: string): Promise<string> {
+  // Import canvas library for Deno
+  const { createCanvas, loadImage } = await import("https://deno.land/x/canvas@v1.4.2/mod.ts");
+  
+  // Remove data URL prefix if present
+  const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, '');
+  
+  // Decode base64 to Uint8Array
+  const imageBytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+  
+  // Load the image
+  const image = await loadImage(imageBytes);
+  
+  // Create canvas with image dimensions
+  const canvas = createCanvas(image.width(), image.height());
+  const ctx = canvas.getContext('2d');
+  
+  // Draw the original image
+  ctx.drawImage(image, 0, 0);
+  
+  // Configure watermark style
+  const fontSize = Math.max(24, Math.min(image.width(), image.height()) * 0.05);
+  ctx.font = `bold ${fontSize}px Arial`;
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+  ctx.lineWidth = 2;
+  
+  // Position watermark in bottom-right corner
+  const watermarkText = 'ThetAI';
+  const textMetrics = ctx.measureText(watermarkText);
+  const x = image.width() - textMetrics.width - 20;
+  const y = image.height() - 20;
+  
+  // Draw watermark with outline for visibility
+  ctx.strokeText(watermarkText, x, y);
+  ctx.fillText(watermarkText, x, y);
+  
+  // Convert back to base64
+  const watermarkedBuffer = canvas.toBuffer('image/png');
+  const watermarkedBase64 = btoa(String.fromCharCode(...new Uint8Array(watermarkedBuffer)));
+  
+  return `data:image/png;base64,${watermarkedBase64}`;
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -142,7 +187,17 @@ serve(async (req) => {
       });
     }
 
-    const imageUrl = images[0]?.image_url?.url;
+    let imageUrl = images[0]?.image_url?.url;
+
+    // Add watermark to the image
+    try {
+      console.log('Adding watermark to image...');
+      imageUrl = await addWatermark(imageUrl);
+      console.log('Watermark added successfully');
+    } catch (watermarkError) {
+      console.error('Failed to add watermark:', watermarkError);
+      // Continue with original image if watermark fails
+    }
 
     return new Response(JSON.stringify({ 
       imageUrl,
